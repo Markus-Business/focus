@@ -121,7 +121,8 @@
 
   /* Modal */
   #modal { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
-  #modal .box { background: var(--panel); border-radius: 14px; padding: 20px; width: 100%; max-width: 380px; }
+  #modal .box { background: var(--panel); border-radius: 14px; padding: 20px; width: 100%; max-width: 380px; max-height: calc(100dvh - 32px); overflow-y: auto; }
+  #modal .box.wide { max-width: 460px; }
   #modal h3 { margin: 0 0 4px; font-size: 18px; }
   #modal .colors { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
   #modal .colors span { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; }
@@ -177,6 +178,60 @@
   .switch-row { display: flex; align-items: center; gap: 10px; color: var(--text); font-size: 15px; margin-top: 16px; cursor: pointer; }
   .switch-row input { width: 20px; height: 20px; flex: none; }
 
+  /* Tagesplan */
+  .plan-nav { display: flex; align-items: center; gap: 6px; margin: 4px 0 8px; }
+  .plan-nav .plan-date { font-weight: 600; font-size: 16px; min-width: 0; flex: 1; text-align: center; }
+  .plan-nav button.ghost { font-size: 20px; padding: 2px 10px; }
+  .plan-sum { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
+  .plan-sum.over { border-color: #f0b4b1; background: #fdf3f2; }
+  .plan-sum .warn { color: var(--danger); font-weight: 600; }
+  .plan-sum .ok { color: #1d7a5c; font-weight: 600; }
+  .plan-err { background: #fdf3f2; color: var(--danger); border-radius: 8px; padding: 8px 10px; font-size: 13px; margin-bottom: 8px; }
+  .plan-hint { font-size: 14px; color: var(--muted); margin-bottom: 8px; }
+  .plan-allday { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .plan-allday span { font-size: 13px; background: color-mix(in srgb, var(--c) 18%, white); border-left: 3px solid var(--c); border-radius: 4px; padding: 3px 8px; }
+  .plan-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; margin-top: 12px; align-items: start; }
+  .timeline { position: relative; margin-left: 46px; }
+  .tl-hour { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); }
+  .tl-hour span { position: absolute; left: -46px; top: -8px; font-size: 11.5px; color: var(--muted); width: 40px; text-align: right; }
+  .tl-work { position: absolute; left: 0; right: 0; background: rgba(255,255,255,.75); }
+  .tl-free { position: absolute; left: 2px; right: 2px; border: 1.5px dashed #9fd7bf; border-radius: 6px; background: rgba(29,158,117,.05); }
+  .tl-free span { position: absolute; right: 6px; top: 3px; font-size: 11.5px; color: #1d7a5c; }
+  .tl-ev, .tl-task { position: absolute; border-radius: 6px; padding: 3px 7px; font-size: 12.5px; overflow: hidden; line-height: 1.25; }
+  .tl-ev { background: color-mix(in srgb, var(--c) 20%, white); border-left: 3px solid var(--c); }
+  .tl-ev.free-ev { opacity: .6; }
+  .tl-ev b, .tl-task b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tl-ev span, .tl-task span { color: var(--muted); font-size: 11.5px; }
+  .tl-task { background: #fdecea; border: 1px solid #f0b4b1; display: flex; gap: 6px; align-items: flex-start; cursor: pointer; }
+  .tl-task > div { flex: 1; min-width: 0; }
+  .tl-task.done { opacity: .5; }
+  .tl-task .play { width: 20px; height: 20px; font-size: 9px; }
+  .tl-task .unplan { padding: 0 4px; font-size: 12px; color: var(--muted); }
+  .tl-now { position: absolute; left: -6px; right: 0; border-top: 2px solid var(--danger); }
+  .tl-now::before { content: ""; position: absolute; left: 0; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+  .pl-task { display: flex; gap: 8px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; margin-bottom: 6px; cursor: pointer; }
+  .pl-task .pl-body { flex: 1; min-width: 0; }
+  .pl-task .meta { margin-top: 2px; }
+  .pl-task .late { color: var(--danger); }
+  .pl-task button[data-plan] { padding: 5px 10px; font-size: 13px; flex-shrink: 0; }
+  .plan-chip { color: var(--accent); }
+  .set-sec { font-weight: 600; font-size: 15px; margin: 22px 0 2px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .box h3 + .set-sec { border-top: none; padding-top: 0; margin-top: 10px; }
+  .days { display: flex; gap: 6px; flex-wrap: wrap; }
+  .day { display: flex; align-items: center; gap: 4px; margin: 0; color: var(--text); font-size: 14px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; cursor: pointer; }
+  .day input { width: 16px; height: 16px; }
+  .cal-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .cal-color { width: 22px; height: 22px; border-radius: 50%; border: none; padding: 0; flex-shrink: 0; }
+  .cal-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cal-on { display: flex; align-items: center; gap: 4px; margin: 0; font-size: 13px; }
+  .cal-on input { width: 16px; height: 16px; }
+  .cal-add { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .hint { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+  @media (max-width: 860px) {
+    .plan-grid { grid-template-columns: 1fr; }
+    .plan-todo { order: -1; }
+  }
+
   #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #2b2b29; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 60; }
 
   /* Handy */
@@ -220,7 +275,7 @@
       <button id="refreshBtn" class="ghost" title="Neu laden" aria-label="Neu laden">⟳</button>
     </header>
     <div class="add-row">
-      <textarea id="newTask" rows="1" placeholder="Neue Aufgabe … z. B. „Angebot Müller morgen 10 Uhr @business“" autocomplete="off" enterkeyhint="done"></textarea>
+      <textarea id="newTask" rows="1" placeholder="Neue Aufgabe … (z. B. „morgen 10 Uhr“)" autocomplete="off" enterkeyhint="done"></textarea>
       <button id="micBtn" class="hidden" aria-label="Diktieren" title="Diktieren">🎤</button>
       <button class="primary" id="addBtn" aria-label="Hinzufügen">+</button>
     </div>
@@ -313,11 +368,15 @@ const state = {
   selectedId: null,
   sessions: [],          // Pomodoro-Einheiten (Fokuszeiten)
   settings: null,        // Timer-Einstellungen aus der Datenbank
+  calendars: [],         // freigegebene Kalender (ICS-Links)
+  events: { key: null, list: [], errors: [], loading: false },   // Termine der angezeigten Woche
+  planDate: null,        // Datum im Tagesplan
 };
 
 const DEFAULT_SETTINGS = {
   pomodoro_minutes: 25, short_break_minutes: 5, long_break_minutes: 15,
   long_break_every: 4, auto_continue: false, sound: 'bell',
+  work_start: '08:00', work_end: '18:00', work_days: [1, 2, 3, 4, 5],
 };
 
 // ================== Hilfsfunktionen ==================
@@ -507,19 +566,22 @@ async function loadData() {
   // Erledigte Aufgaben nur der letzten 60 Tage laden (hält die Datenmenge klein)
   const since = new Date(Date.now() - 60 * 864e5).toISOString();
   const sessSince = new Date(Date.now() - 365 * 864e5).toISOString();
-  const [p, t, s, st] = await Promise.all([
+  const [p, t, s, st, c] = await Promise.all([
     db.from('projects').select('*').order('sort_order'),
     db.from('tasks').select('*').or(`done.eq.false,done_at.gte.${since.slice(0, 10)}`).order('sort_order').limit(5000),
     db.from('pomodoro_sessions').select('*').gte('started_at', sessSince).order('started_at', { ascending: false }).limit(5000),
     db.from('settings').select('*').maybeSingle(),
+    db.from('calendars').select('*').order('sort_order'),
   ]);
-  for (const r of [p, t, s, st]) if (r.error) return showError(r.error);
+  for (const r of [p, t, s, st, c]) if (r.error) return showError(r.error);
+  state.calendars = c.data;
   state.projects = p.data;
   state.tasks = t.data;
   state.sessions = s.data;
   state.settings = { ...DEFAULT_SETTINGS, ...(st.data || {}) };
   render();
   renderTimer();
+  if (state.view.type === 'plan') loadEvents(true);
 }
 
 // ================== Pomodoro-Timer ==================
@@ -730,12 +792,17 @@ function playPauseClick() {
 }
 
 // ================== Einstellungen ==================
+const DAYNAMES = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+const CAL_COLORS = ['#8e8d87', '#2f6fdf', '#1d9e75', '#e2a23b', '#d9534f', '#8e5bd8', '#d4537e', '#3aa3c9'];
+
 function openSettings() {
   const s = S();
+  const wd = s.work_days || [1, 2, 3, 4, 5];
   const m = $('modal');
   m.innerHTML = `
-    <div class="box">
+    <div class="box wide">
       <h3>Einstellungen</h3>
+      <div class="set-sec">Pomodoro</div>
       <div class="grid2">
         <div><label for="sPomo">Fokus (Minuten)</label><input type="number" id="sPomo" min="1" max="180" value="${s.pomodoro_minutes}"></div>
         <div><label for="sEvery">Lange Pause nach</label><input type="number" id="sEvery" min="1" max="12" value="${s.long_break_every}"></div>
@@ -752,20 +819,44 @@ function openSettings() {
         </select>
         <button id="sTest">Anhören</button>
       </div>
+
+      <div class="set-sec">Arbeitszeit (Rahmen für freie Zeiten)</div>
+      <div class="grid2">
+        <div><label for="sWs">Beginn</label><input type="time" id="sWs" value="${(s.work_start || '08:00').slice(0, 5)}"></div>
+        <div><label for="sWe">Ende</label><input type="time" id="sWe" value="${(s.work_end || '18:00').slice(0, 5)}"></div>
+      </div>
+      <label>Arbeitstage</label>
+      <div class="days">${[1, 2, 3, 4, 5, 6, 0].map((d) => `<label class="day"><input type="checkbox" data-wd="${d}" ${wd.includes(d) ? 'checked' : ''}><span>${DAYNAMES[d]}</span></label>`).join('')}</div>
+
       <div class="actions"><span class="spacer"></span><button id="sCancel">Abbrechen</button><button class="primary" id="sSave">Speichern</button></div>
+
+      <div class="set-sec">Kalender (nur lesen)</div>
+      <div id="calList"></div>
+      <div class="cal-add">
+        <input id="calName" placeholder="Name, z. B. Business">
+        <input id="calUrl" placeholder="Freigabe-Link (webcal://… oder https://…)">
+        <button id="calAdd">Kalender hinzufügen</button>
+        <div class="hint">In der Kalender-App am Mac: Rechtsklick auf den Kalender → „Kalender teilen …“ → „Öffentlicher Kalender“ anhaken → Link kopieren.</div>
+      </div>
     </div>`;
   m.classList.remove('hidden');
+  renderCalList();
   const close = () => m.classList.add('hidden');
   m.onclick = (e) => { if (e.target === m) close(); };
   $('sCancel').onclick = close;
   $('sTest').onclick = () => { unlockAudio(); playSound($('sSound').value); };
+  $('calAdd').onclick = addCalendar;
   $('sSave').onclick = async () => {
     const num = (id, min, max) => Math.max(min, Math.min(max, parseInt($(id).value, 10) || min));
+    const ws = $('sWs').value || '08:00', we = $('sWe').value || '18:00';
+    if (we <= ws) return toast('Das Ende der Arbeitszeit muss nach dem Beginn liegen');
     const row = {
       user_id: state.user.id,
       pomodoro_minutes: num('sPomo', 1, 180), short_break_minutes: num('sShort', 1, 60),
       long_break_minutes: num('sLong', 1, 120), long_break_every: num('sEvery', 1, 12),
       auto_continue: $('sAuto').checked, sound: $('sSound').value,
+      work_start: ws, work_end: we,
+      work_days: [...m.querySelectorAll('[data-wd]')].filter((x) => x.checked).map((x) => +x.dataset.wd),
     };
     const { data, error } = await db.from('settings').upsert(row).select().single();
     if (error) return showError(error);
@@ -773,6 +864,240 @@ function openSettings() {
     close(); render(); renderTimer();
     toast('Einstellungen gespeichert');
   };
+}
+
+function renderCalList() {
+  const el = $('calList');
+  if (!el) return;
+  if (!state.calendars.length) { el.innerHTML = '<div class="hint">Noch kein Kalender verbunden.</div>'; return; }
+  el.innerHTML = state.calendars.map((c) => `
+    <div class="cal-row">
+      <button class="cal-color" data-calcolor="${c.id}" style="background:${esc(c.color)}" aria-label="Farbe ändern" title="Farbe ändern"></button>
+      <span class="cal-name">${esc(c.name)}</span>
+      <label class="cal-on"><input type="checkbox" data-calon="${c.id}" ${c.enabled ? 'checked' : ''}> anzeigen</label>
+      <button class="ghost del" data-caldel="${c.id}" aria-label="Kalender entfernen">✕</button>
+    </div>`).join('');
+  el.querySelectorAll('[data-calon]').forEach((b) => b.onchange = () => updateCalendar(b.dataset.calon, { enabled: b.checked }));
+  el.querySelectorAll('[data-calcolor]').forEach((b) => b.onclick = () => {
+    const c = state.calendars.find((x) => x.id === b.dataset.calcolor);
+    updateCalendar(c.id, { color: CAL_COLORS[(CAL_COLORS.indexOf(c.color) + 1) % CAL_COLORS.length] });
+  });
+  el.querySelectorAll('[data-caldel]').forEach((b) => b.onclick = async () => {
+    const c = state.calendars.find((x) => x.id === b.dataset.caldel);
+    if (!confirm(`Kalender „${c.name}“ aus der App entfernen? (Dein iCloud-Kalender bleibt unverändert.)`)) return;
+    const { error } = await db.from('calendars').delete().eq('id', c.id);
+    if (error) return showError(error);
+    state.calendars = state.calendars.filter((x) => x.id !== c.id);
+    renderCalList(); loadEvents(true);
+  });
+}
+async function addCalendar() {
+  const name = $('calName').value.trim(), url = $('calUrl').value.trim();
+  if (!name) return $('calName').focus();
+  if (!/^(webcals?|https):\/\/\S+$/i.test(url)) { toast('Bitte den Freigabe-Link einfügen (beginnt mit webcal:// oder https://)', 4000); return $('calUrl').focus(); }
+  const color = CAL_COLORS[state.calendars.length % CAL_COLORS.length];
+  const { data, error } = await db.from('calendars').insert({ name, url, color, sort_order: state.calendars.length + 1 }).select().single();
+  if (error) return showError(error);
+  state.calendars.push(data);
+  $('calName').value = ''; $('calUrl').value = '';
+  renderCalList(); loadEvents(true);
+  toast(`Kalender „${name}“ verbunden`);
+}
+async function updateCalendar(id, patch) {
+  const c = state.calendars.find((x) => x.id === id);
+  Object.assign(c, patch);
+  renderCalList();
+  const { error } = await db.from('calendars').update(patch).eq('id', id);
+  if (error) return showError(error);
+  loadEvents(true);
+}
+
+// ================== Kalender-Termine + Tagesplan ==================
+const PX_PER_MIN = 1.1;   // Höhe der Zeitleiste: 66 px pro Stunde
+function minutesOf(hm) { const [h, m] = String(hm || '0:0').split(':').map(Number); return h * 60 + (m || 0); }
+function hhmm(min) { min = Math.max(0, Math.min(1440, Math.round(min))); return `${pad(Math.floor(min / 60) % 24)}:${pad(min % 60)}`; }
+function fmtDur(min) { min = Math.round(min); const h = Math.floor(min / 60), m = min % 60; return h ? `${h} h${m ? ' ' + pad(m) : ''}` : `${m} Min.`; }
+function taskDuration(t) { return t.estimate_minutes || (t.estimate_pomodoros ? t.estimate_pomodoros * S().pomodoro_minutes : 0); }
+function weekStart(day) { const d = parseDate(day); const diff = (d.getDay() + 6) % 7; d.setDate(d.getDate() - diff); return toDateStr(d); }
+
+async function loadEvents(force = false) {
+  const day = state.planDate || todayStr();
+  const key = weekStart(day);
+  if (!force && state.events.key === key) return;
+  if (!state.calendars.some((c) => c.enabled)) { state.events = { key, list: [], errors: [], loading: false }; if (state.view.type === 'plan') renderList(); return; }
+  state.events = { ...state.events, key, loading: true };
+  if (state.view.type === 'plan') renderList();
+  const from = parseDate(key), to = parseDate(addDays(key, 7));
+  const { data, error } = await db.functions.invoke('calendar-events', { body: { from: from.toISOString(), to: to.toISOString() } });
+  if (state.events.key !== key) return;   // inzwischen andere Woche gewählt
+  if (error || data?.error) {
+    state.events = { key, list: [], errors: [{ name: 'Kalender', message: data?.error || error.message || 'nicht erreichbar' }], loading: false };
+  } else {
+    state.events = { key, list: data.events || [], errors: data.errors || [], loading: false };
+  }
+  if (state.view.type === 'plan') renderList();
+}
+
+function dayEvents(day) {
+  const d0 = parseDate(day).getTime(), d1 = parseDate(addDays(day, 1)).getTime();
+  const allDay = [], timed = [];
+  for (const e of state.events.list) {
+    if (e.allDay) { if (e.start <= day && (e.end > day || e.end === e.start && e.start === day)) allDay.push(e); continue; }
+    const s = new Date(e.start).getTime(), en = new Date(e.end).getTime();
+    if (en <= d0 || s >= d1) continue;
+    timed.push({ ...e, sMin: Math.max(0, (s - d0) / 60000), eMin: Math.min(1440, (en - d0) / 60000) });
+  }
+  return { allDay, timed };
+}
+
+function mergeIntervals(list) {
+  const a = list.filter(([s, e]) => e > s).sort((x, y) => x[0] - y[0]);
+  const out = [];
+  for (const [s, e] of a) { if (out.length && s <= out[out.length - 1][1]) out[out.length - 1][1] = Math.max(out[out.length - 1][1], e); else out.push([s, e]); }
+  return out;
+}
+
+function planModel(day) {
+  const st = S();
+  const isWork = (st.work_days || []).includes(parseDate(day).getDay());
+  const ws = minutesOf(st.work_start), we = minutesOf(st.work_end);
+  const ev = dayEvents(day);
+  const top = state.tasks.filter((t) => !t.parent_id);
+  const planned = top.filter((t) => t.planned_date === day && t.planned_start).map((t) => {
+    const sMin = minutesOf(t.planned_start), dur = taskDuration(t) || 30;
+    return { task: t, sMin, eMin: Math.min(1440, sMin + dur), estimated: !!taskDuration(t) };
+  });
+  const busy = mergeIntervals([...ev.timed.filter((e) => e.busy).map((e) => [e.sMin, e.eMin]), ...planned.filter((p) => !p.task.done).map((p) => [p.sMin, p.eMin])]);
+  // freie Lücken innerhalb der Arbeitszeit (ab 15 Minuten)
+  const free = [];
+  if (isWork) {
+    let cur = ws;
+    if (day === todayStr()) { const now = new Date(); cur = Math.max(cur, Math.ceil((now.getHours() * 60 + now.getMinutes()) / 5) * 5); }
+    for (const [s, e] of busy) { if (e <= cur) continue; if (s >= we) break; if (s > cur) free.push([cur, Math.min(s, we)]); cur = Math.max(cur, e); }
+    if (cur < we) free.push([cur, we]);
+  }
+  const freeSlots = free.filter(([s, e]) => e - s >= 15);
+  const freeMin = freeSlots.reduce((a, [s, e]) => a + e - s, 0);
+  // Aufgaben des Tages, die noch keine Uhrzeit im Plan haben
+  const isToday = day === todayStr();
+  const todo = top.filter((t) => !t.done && !(t.planned_date === day && t.planned_start) &&
+    (t.planned_date === day || (t.due_date && (isToday ? t.due_date <= day : t.due_date === day))));
+  const todoMin = todo.reduce((a, t) => a + taskDuration(t), 0);
+  const unestimated = todo.filter((t) => !taskDuration(t)).length;
+  let startMin = isWork ? ws : 8 * 60, endMin = isWork ? we : 18 * 60;
+  for (const x of [...ev.timed, ...planned]) { startMin = Math.min(startMin, x.sMin); endMin = Math.max(endMin, x.eMin); }
+  startMin = Math.max(0, Math.floor(startMin / 60) * 60); endMin = Math.min(1440, Math.ceil(endMin / 60) * 60);
+  return { day, isWork, ws, we, ev, planned, freeSlots, freeMin, todo, todoMin, unestimated, startMin, endMin };
+}
+
+// Überlappende Blöcke nebeneinander anordnen
+function layoutBlocks(blocks) {
+  blocks.sort((a, b) => a.sMin - b.sMin || b.eMin - a.eMin);
+  let cluster = [], clusterEnd = -1;
+  const flush = () => { const n = Math.max(...cluster.map((b) => b.col)) + 1; cluster.forEach((b) => { b.cols = n; }); cluster = []; };
+  for (const b of blocks) {
+    if (cluster.length && b.sMin >= clusterEnd) flush(), clusterEnd = -1;
+    const used = new Set(cluster.filter((c) => c.eMin > b.sMin).map((c) => c.col));
+    let col = 0; while (used.has(col)) col++;
+    b.col = col; cluster.push(b); clusterEnd = Math.max(clusterEnd, b.eMin);
+  }
+  if (cluster.length) flush();
+  return blocks;
+}
+
+async function planTask(t, day) {
+  const m = planModel(day);
+  const need = taskDuration(t) || 30;
+  const slot = m.freeSlots.find(([s, e]) => e - s >= need) || m.freeSlots[0];
+  if (!slot) return toast('An diesem Tag ist in der Arbeitszeit keine Lücke mehr frei', 3500);
+  await updateTask(t.id, { planned_date: day, planned_start: hhmm(slot[0]) });
+  toast(`Eingeplant um ${hhmm(slot[0])}${(slot[1] - slot[0]) < need ? ' (Lücke ist zu kurz)' : ''}`);
+}
+
+function renderPlan() {
+  const day = state.planDate || (state.planDate = todayStr());
+  loadEvents();
+  const m = planModel(day);
+  const el = $('list');
+  const d = parseDate(day);
+  const label = d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+  const over = m.todoMin - m.freeMin;
+  const evLoading = state.events.loading;
+
+  const blocks = layoutBlocks([
+    ...m.ev.timed.map((e) => ({ kind: 'event', e, sMin: e.sMin, eMin: Math.max(e.eMin, e.sMin + 15) })),
+    ...m.planned.map((p) => ({ kind: 'task', p, sMin: p.sMin, eMin: Math.max(p.eMin, p.sMin + 15) })),
+  ]);
+  const top = (min) => (min - m.startMin) * PX_PER_MIN;
+  const height = (m.endMin - m.startMin) * PX_PER_MIN;
+  let hours = '';
+  for (let h = m.startMin; h <= m.endMin; h += 60) hours += `<div class="tl-hour" style="top:${top(h)}px"><span>${hhmm(h)}</span></div>`;
+  const workBand = m.isWork ? `<div class="tl-work" style="top:${top(Math.max(m.ws, m.startMin))}px;height:${(Math.min(m.we, m.endMin) - Math.max(m.ws, m.startMin)) * PX_PER_MIN}px"></div>` : '';
+  const freeHtml = m.freeSlots.map(([s, e]) => `<div class="tl-free" style="top:${top(s)}px;height:${(e - s) * PX_PER_MIN}px"><span>frei ${fmtDur(e - s)}</span></div>`).join('');
+  const blockHtml = blocks.map((b) => {
+    const style = `top:${top(b.sMin)}px;height:${Math.max(18, (b.eMin - b.sMin) * PX_PER_MIN - 2)}px;left:calc(${(b.col / b.cols) * 100}% + 2px);width:calc(${100 / b.cols}% - 4px)`;
+    if (b.kind === 'event') {
+      const e = b.e;
+      return `<div class="tl-ev ${e.busy ? '' : 'free-ev'}" style="${style};--c:${esc(e.color || '#8e8d87')}" title="${esc(e.title)} · ${esc(e.calendar || '')}">
+        <b>${esc(e.title)}</b><span>${hhmm(e.sMin)}–${hhmm(e.eMin)}${e.location ? ' · ' + esc(e.location) : ''}</span></div>`;
+    }
+    const t = b.p.task;
+    return `<div class="tl-task ${t.done ? 'done' : ''}" style="${style}" data-open="${t.id}">
+      <button class="play" data-play="${t.id}" aria-label="Pomodoro starten">▶</button>
+      <div><b>${esc(t.title)}</b><span>${hhmm(b.p.sMin)}–${hhmm(b.p.eMin)}${b.p.estimated ? '' : ' · ohne Schätzung'}</span></div>
+      <button class="ghost unplan" data-unplan="${t.id}" aria-label="Aus dem Plan nehmen" title="Aus dem Plan nehmen">✕</button></div>`;
+  }).join('');
+  let nowLine = '';
+  if (day === todayStr()) { const n = new Date(); const nm = n.getHours() * 60 + n.getMinutes(); if (nm >= m.startMin && nm <= m.endMin) nowLine = `<div class="tl-now" style="top:${top(nm)}px"></div>`; }
+
+  const errs = state.events.errors.map((x) => `<div class="plan-err">⚠ ${esc(x.name)}: ${esc(x.message)}</div>`).join('');
+  const noCal = !state.calendars.length ? `<div class="plan-hint">Noch kein Kalender verbunden. <button class="ghost link" id="planSettings">In den Einstellungen hinzufügen</button></div>` : '';
+  const todoHtml = m.todo.length ? m.todo.map((t) => {
+    const dur = taskDuration(t);
+    const proj = projectById(t.project_id);
+    return `<div class="pl-task" data-open="${t.id}">
+      <button class="play" data-play="${t.id}" aria-label="Pomodoro starten">▶</button>
+      <div class="pl-body"><div>${esc(t.title)}</div><div class="meta">${dur ? fmtDur(dur) : 'ohne Schätzung'}${t.due_date && t.due_date < day ? ` · <span class="late">fällig ${fmtDate(t.due_date)}</span>` : ''}${proj ? ' · ' + esc(proj.name) : ''}</div></div>
+      <button data-plan="${t.id}">Einplanen</button></div>`;
+  }).join('') : '<div class="empty" style="margin-top:12px">Alles eingeplant.</div>';
+
+  el.innerHTML = `
+    <div class="plan-nav">
+      <button class="ghost" id="planPrev" aria-label="Vortag">‹</button>
+      <div class="plan-date">${esc(label)}</div>
+      <button class="ghost" id="planNext" aria-label="Folgetag">›</button>
+      ${day !== todayStr() ? '<button id="planToday">Heute</button>' : ''}
+      <button class="ghost" id="planReload" title="Kalender neu laden" aria-label="Kalender neu laden">${evLoading ? '…' : '⟳'}</button>
+    </div>
+    ${errs}${noCal}
+    <div class="plan-sum ${over > 0 && m.isWork ? 'over' : ''}">
+      ${m.isWork ? `<span>Frei: <b>${fmtDur(m.freeMin)}</b></span>` : '<span>Kein Arbeitstag</span>'}
+      <span>Noch einzuplanen: <b>${fmtDur(m.todoMin)}</b>${m.unestimated ? ` + ${m.unestimated} ohne Schätzung` : ''}</span>
+      ${m.isWork && over > 0 ? `<span class="warn">⚠ ${fmtDur(over)} mehr als Zeit frei ist</span>` : (m.isWork && m.todoMin ? '<span class="ok">✓ passt</span>' : '')}
+    </div>
+    ${m.ev.allDay.length ? `<div class="plan-allday">${m.ev.allDay.map((e) => `<span style="--c:${esc(e.color || '#8e8d87')}">${esc(e.title)}</span>`).join('')}</div>` : ''}
+    <div class="plan-grid">
+      <div class="timeline" style="height:${height + 12}px">${workBand}${hours}${freeHtml}${blockHtml}${nowLine}</div>
+      <div class="plan-todo"><div class="group-title" style="margin-top:0">Noch einzuplanen (${m.todo.length})</div>${todoHtml}</div>
+    </div>`;
+
+  const go = (n) => { state.planDate = addDays(day, n); renderList(); };
+  $('planPrev').onclick = () => go(-1);
+  $('planNext').onclick = () => go(1);
+  if ($('planToday')) $('planToday').onclick = () => { state.planDate = todayStr(); renderList(); };
+  $('planReload').onclick = () => loadEvents(true);
+  if ($('planSettings')) $('planSettings').onclick = openSettings;
+  el.querySelectorAll('[data-open]').forEach((x) => x.onclick = (e) => { if (e.target.closest('button')) return; state.selectedId = x.dataset.open; render(); });
+  el.querySelectorAll('[data-play]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); startFocus(b.dataset.play); render(); });
+  el.querySelectorAll('[data-plan]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); planTask(taskById(b.dataset.plan), day); });
+  el.querySelectorAll('[data-unplan]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); updateTask(b.dataset.unplan, { planned_start: null }); });
+  // beim ersten Öffnen zur aktuellen Uhrzeit bzw. zum Arbeitsbeginn scrollen
+  if (!renderPlan._scrolled) {
+    renderPlan._scrolled = true;
+    const n = new Date();
+    const target = day === todayStr() ? n.getHours() * 60 + n.getMinutes() - 60 : m.ws;
+    setTimeout(() => { const tl = el.querySelector('.timeline'); if (tl) el.scrollTop = Math.max(0, tl.offsetTop + top(target) - 40); }, 0);
+  }
 }
 
 // ================== Aufgaben ändern ==================
@@ -789,6 +1114,7 @@ async function addTask(title, extra = {}, opts = { open: true }) {
     // Vorgaben aus der aktuellen Ansicht – Erkanntes aus dem Text hat Vorrang
     if (state.view.type === 'project') row.project_id = state.view.id;
     if (state.view.type === 'today' || state.view.type === 'upcoming') row.due_date = todayStr();
+    if (state.view.type === 'plan') row.due_date = state.planDate || todayStr();
   }
   Object.assign(row, extra);
   const { data, error } = await db.from('tasks').insert(row).select().single();
@@ -988,6 +1314,7 @@ function tasksForView() {
 function viewTitle() {
   const v = state.view;
   if (v.type === 'today') return 'Heute';
+  if (v.type === 'plan') return 'Tagesplan';
   if (v.type === 'upcoming') return 'Nächste 7 Tage';
   if (v.type === 'nodate') return 'Ohne Datum';
   if (v.type === 'all') return 'Alle Aufgaben';
@@ -1025,6 +1352,7 @@ function renderSidebar() {
   };
   $('sidebar').innerHTML =
     item('today', 'Heute', '☀', null, `<span class="count">${counts.today || ''}</span>`) +
+    item('plan', 'Tagesplan', '🕘') +
     item('upcoming', 'Nächste 7 Tage', '📅', null, `<span class="count">${counts.upcoming || ''}</span>`) +
     item('nodate', 'Ohne Datum', '◌', null, `<span class="count">${counts.nodate || ''}</span>`) +
     item('all', 'Alle Aufgaben', '☰', null, `<span class="count">${counts.all || ''}</span>`) +
@@ -1035,6 +1363,7 @@ function renderSidebar() {
   $('sidebar').querySelectorAll('.nav-item').forEach((el) => el.onclick = (e) => {
     if (e.target.closest('.edit')) return;
     state.view = { type: el.dataset.type, id: el.dataset.id || null };
+    if (state.view.type === 'plan') { renderPlan._scrolled = false; if (!state.planDate) state.planDate = todayStr(); }
     state.selectedId = null;
     closeSidebar();
     render();
@@ -1054,6 +1383,7 @@ function taskHtml(t, opts = {}) {
   const late = t.due_date && t.due_date < todayStr() && !t.done;
   const meta = [];
   if (t.due_date) meta.push(`<span class="chip ${late ? 'late' : ''}">📅 ${fmtDate(t.due_date)}${t.due_time ? ' ' + t.due_time.slice(0, 5) : ''}</span>`);
+  if (t.planned_date && t.planned_start && !t.done) meta.push(`<span class="chip plan-chip">🕘 ${t.planned_date === todayStr() ? '' : fmtDate(t.planned_date) + ' '}${t.planned_start.slice(0, 5)}</span>`);
   if (t.recurrence) meta.push(`<span class="chip">↻ ${esc(ruleLabel(t.recurrence))}</span>`);
   {
     // Tomaten: erledigte kräftig, noch geschätzte blass. Max. 5 Symbole, darüber Zahl.
@@ -1082,6 +1412,7 @@ let sortables = [];
 function renderList() {
   $('viewTitle').textContent = viewTitle();
   sortables.forEach((s) => s.destroy()); sortables = [];
+  if (state.view.type === 'plan') return renderPlan();
   const all = tasksForView();
   const open = all.filter((t) => !t.done);
   const done = all.filter((t) => t.done);
@@ -1173,6 +1504,10 @@ function renderDetail() {
       <div><label for="dDate">Fällig am</label><input type="date" id="dDate" value="${t.due_date || ''}"></div>
       <div><label for="dTime">Uhrzeit</label><input type="time" id="dTime" value="${t.due_time ? t.due_time.slice(0, 5) : ''}"></div>
     </div>
+    <div class="grid2">
+      <div><label for="dPDate">Eingeplant am</label><input type="date" id="dPDate" value="${t.planned_date || ''}"></div>
+      <div><label for="dPTime">um</label><input type="time" id="dPTime" value="${t.planned_start ? t.planned_start.slice(0, 5) : ''}"></div>
+    </div>
 
     <div class="grid2">
       <div><label for="dPomo">Geschätzt (Pomodoros)</label><input type="number" min="0" max="50" id="dPomo" value="${t.estimate_pomodoros ?? ''}" placeholder="0"></div>
@@ -1244,6 +1579,12 @@ function renderDetail() {
   d.querySelectorAll('[data-prio]').forEach((b) => b.onclick = () => updateTask(t.id, { priority: Number(b.dataset.prio) }));
   $('dDate').onchange = (e) => updateTask(t.id, { due_date: e.target.value || null });
   $('dTime').onchange = (e) => updateTask(t.id, { due_time: e.target.value || null });
+  $('dPDate').onchange = (e) => updateTask(t.id, e.target.value ? { planned_date: e.target.value } : { planned_date: null, planned_start: null });
+  $('dPTime').onchange = (e) => {
+    const v = e.target.value;
+    if (!v) return updateTask(t.id, { planned_start: null });
+    updateTask(t.id, { planned_start: v, planned_date: t.planned_date || t.due_date || todayStr() });
+  };
   $('dPomo').onchange = (e) => updateTask(t.id, { estimate_pomodoros: e.target.value === '' ? null : Math.max(0, parseInt(e.target.value, 10) || 0) });
   // Wiederholen: kleines Fenster "alle [N] [Einheit]"
   const recPop = $('dRecPop');

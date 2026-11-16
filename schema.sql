@@ -154,3 +154,9 @@ create policy goals_own on public.weekly_goals for all
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy settings_own on public.settings for all
   using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- ---------- Kalender (Etappe 4a, Migration 'add_calendars') ----------
+-- create table public.calendars (id uuid pk, owner_id uuid -> auth.users, name text, url text (Freigabe-Link),
+--   color text, enabled boolean, sort_order double precision, created_at timestamptz);
+-- RLS: calendars_own (nur eigene Zeilen). Termine liefert die Edge Function 'calendar-events'
+-- (supabase/functions/calendar-events/index.ts).

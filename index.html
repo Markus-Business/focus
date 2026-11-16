@@ -118,6 +118,54 @@
   #modal .actions { display: flex; gap: 8px; margin-top: 20px; }
   #modal .actions .spacer { flex: 1; }
 
+  /* Pomodoro */
+  .play { width: 24px; height: 24px; border-radius: 50%; border: none; background: #fbe3e1; color: #d9534f; font-size: 10px; padding: 0 0 0 2px; flex-shrink: 0; margin-top: 0; display: flex; align-items: center; justify-content: center; }
+  .play:hover, .play.on { background: #d9534f; color: #fff; }
+  .task.active { border-color: #d9534f; box-shadow: 0 0 0 1px #d9534f; }
+  .chip.pomo { gap: 0; font-size: 12px; }
+  .chip.pomo .tm { margin-right: -1px; }
+  .chip.pomo .tm.off { opacity: .28; filter: grayscale(.4); }
+  .chip.pomo .pomo-n { margin-left: 4px; font-weight: 600; color: #d9534f; }
+  body.has-timer #list { padding-bottom: 110px; }
+  body.has-timer #detail { padding-bottom: 110px; }
+  #timerBar { position: fixed; z-index: 45; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom)); width: min(560px, calc(100% - 24px)); display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 16px; border-radius: 16px; background: #2b2b29; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+  #timerBar.phase-short, #timerBar.phase-long { background: #1d7a5c; }
+  #timerBar.phase-wait { background: #4a4a46; }
+  .tb-info { flex: 1; min-width: 0; text-align: left; background: none; border: none; color: inherit; padding: 2px 0; display: flex; flex-direction: column; }
+  .tb-label { font-size: 12px; opacity: .75; }
+  .tb-task { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tb-clock { font-size: 22px; font-variant-numeric: tabular-nums; font-weight: 600; letter-spacing: .02em; }
+  .tb-btn { width: 40px; height: 40px; border-radius: 50%; border: none; background: rgba(255,255,255,.14); color: #fff; padding: 0; font-size: 14px; }
+  #focusView { position: fixed; inset: 0; z-index: 55; background: #2b2b29; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom)); text-align: center; }
+  #focusView[data-phase="short"], #focusView[data-phase="long"] { background: #1d6b52; }
+  #focusView[data-phase="wait"] { background: #3d3d3a; }
+  .fv-close { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 14px; color: #fff; opacity: .8; }
+  .fv-label { font-size: 15px; opacity: .75; letter-spacing: .04em; text-transform: uppercase; }
+  .fv-task { font-size: 20px; margin: 8px 0 22px; max-width: 520px; }
+  .fv-ring-wrap { position: relative; width: min(280px, 72vw); aspect-ratio: 1; }
+  .fv-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .fv-track { fill: none; stroke: rgba(255,255,255,.14); stroke-width: 10; }
+  .fv-ring { fill: none; stroke: #ef6b5e; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset .5s linear; }
+  #focusView[data-phase="short"] .fv-ring, #focusView[data-phase="long"] .fv-ring { stroke: #6fe0b4; }
+  .fv-clock { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: clamp(48px, 16vw, 72px); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .fv-count { margin-top: 18px; opacity: .8; font-size: 15px; }
+  .fv-actions { display: flex; gap: 10px; margin-top: 26px; flex-wrap: wrap; justify-content: center; }
+  .fv-actions button { min-width: 120px; padding: 12px 16px; border-radius: 12px; background: rgba(255,255,255,.12); border-color: transparent; color: #fff; }
+  .fv-actions button.primary { background: #fff; color: #2b2b29; }
+  .fv-actions button.danger { color: #ffb4ad; }
+  .focus-box { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
+  .focus-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; }
+  .focus-head button { padding: 6px 12px; font-size: 14px; }
+  .sess-list { margin-top: 8px; border-top: 1px solid var(--line); }
+  .sess { display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--muted); padding: 5px 0; border-bottom: 1px solid var(--line); }
+  .sess span:first-child { width: 90px; }
+  .sess span:nth-child(2) { flex: 1; }
+  .sess .del { padding: 0 6px; }
+  .link { padding: 6px 0 0; color: var(--accent); font-size: 14px; }
+  .grid3 { display: grid; grid-template-columns: 1.3fr 1fr .8fr; gap: 0 8px; }
+  .switch-row { display: flex; align-items: center; gap: 10px; color: var(--text); font-size: 15px; margin-top: 16px; cursor: pointer; }
+  .switch-row input { width: 20px; height: 20px; flex: none; }
+
   #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #2b2b29; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 60; }
 
   /* Handy */
@@ -169,6 +217,37 @@
   <aside id="detail" class="hidden"></aside>
 </div>
 
+<!-- ============ Timer-Leiste ============ -->
+<div id="timerBar" class="hidden">
+  <button id="tbOpen" class="tb-info" aria-label="Fokus-Ansicht öffnen">
+    <span id="tbLabel" class="tb-label"></span>
+    <span id="tbTask" class="tb-task"></span>
+  </button>
+  <span id="tbClock" class="tb-clock">25:00</span>
+  <button id="tbPlay" class="tb-btn" aria-label="Pause">❚❚</button>
+  <button id="tbStop" class="tb-btn" aria-label="Stopp">■</button>
+</div>
+
+<!-- ============ Fokus-Vollbild ============ -->
+<div id="focusView" class="hidden">
+  <button id="fvClose" class="ghost fv-close" aria-label="Verkleinern">⌄ Verkleinern</button>
+  <div class="fv-label" id="fvLabel">Fokus</div>
+  <div class="fv-task" id="fvTask"></div>
+  <div class="fv-ring-wrap">
+    <svg viewBox="0 0 260 260" class="fv-svg" aria-hidden="true">
+      <circle cx="130" cy="130" r="120" class="fv-track"/>
+      <circle cx="130" cy="130" r="120" class="fv-ring" id="fvRing" stroke-dasharray="753.98" stroke-dashoffset="753.98"/>
+    </svg>
+    <div class="fv-clock" id="fvClock">25:00</div>
+  </div>
+  <div class="fv-count" id="fvCount"></div>
+  <div class="fv-actions">
+    <button id="fvPlay" class="primary">❚❚ Pause</button>
+    <button id="fvSkip">Fertig</button>
+    <button id="fvStop" class="danger">Stopp</button>
+  </div>
+</div>
+
 <div id="modal" class="hidden"></div>
 <div id="toast" class="hidden"></div>
 
@@ -213,6 +292,13 @@ const state = {
   view: { type: 'today', id: null },
   showDone: false,
   selectedId: null,
+  sessions: [],          // Pomodoro-Einheiten (Fokuszeiten)
+  settings: null,        // Timer-Einstellungen aus der Datenbank
+};
+
+const DEFAULT_SETTINGS = {
+  pomodoro_minutes: 25, short_break_minutes: 5, long_break_minutes: 15,
+  long_break_every: 4, auto_continue: false, sound: 'bell',
 };
 
 // ================== Hilfsfunktionen ==================
@@ -300,15 +386,275 @@ async function logout() { await db.auth.signOut(); }
 
 // ================== Daten laden ==================
 async function loadData() {
-  const [p, t] = await Promise.all([
+  // Erledigte Aufgaben nur der letzten 60 Tage laden (hält die Datenmenge klein)
+  const since = new Date(Date.now() - 60 * 864e5).toISOString();
+  const sessSince = new Date(Date.now() - 365 * 864e5).toISOString();
+  const [p, t, s, st] = await Promise.all([
     db.from('projects').select('*').order('sort_order'),
-    db.from('tasks').select('*').order('sort_order'),
+    db.from('tasks').select('*').or(`done.eq.false,done_at.gte.${since.slice(0, 10)}`).order('sort_order').limit(5000),
+    db.from('pomodoro_sessions').select('*').gte('started_at', sessSince).order('started_at', { ascending: false }).limit(5000),
+    db.from('settings').select('*').maybeSingle(),
   ]);
-  if (p.error) return showError(p.error);
-  if (t.error) return showError(t.error);
+  for (const r of [p, t, s, st]) if (r.error) return showError(r.error);
   state.projects = p.data;
   state.tasks = t.data;
+  state.sessions = s.data;
+  state.settings = { ...DEFAULT_SETTINGS, ...(st.data || {}) };
   render();
+  renderTimer();
+}
+
+// ================== Pomodoro-Timer ==================
+// Zustand liegt im Browser (localStorage), damit der Timer ein Neuladen übersteht.
+// Gerechnet wird mit Zeitstempeln: stimmt auch, wenn das iPhone die App kurz einfriert.
+const TIMER_KEY = 'fokus.timer';
+const PHASE_LABEL = { focus: 'Fokus', short: 'Kurze Pause', long: 'Lange Pause' };
+let timer = null;      // { phase, taskId, plannedMs, startedAt, endAt|null, pausedMs|null, cycle, waiting?:nextPhase }
+let tickHandle = null;
+let audioCtx = null;
+let wakeLock = null;
+
+function S() { return state.settings || DEFAULT_SETTINGS; }
+function phaseMs(phase) {
+  const s = S();
+  return (phase === 'focus' ? s.pomodoro_minutes : phase === 'short' ? s.short_break_minutes : s.long_break_minutes) * 60000;
+}
+function persistTimer() { try { timer ? localStorage.setItem(TIMER_KEY, JSON.stringify(timer)) : localStorage.removeItem(TIMER_KEY); } catch (e) {} }
+function loadTimer() { try { timer = JSON.parse(localStorage.getItem(TIMER_KEY) || 'null'); } catch (e) { timer = null; } }
+function remainingMs() {
+  if (!timer || timer.waiting) return 0;
+  if (timer.pausedMs != null) return timer.pausedMs;
+  return Math.max(0, timer.endAt - Date.now());
+}
+function fmtClock(ms) { const s = Math.ceil(ms / 1000); return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`; }
+
+// Ton (Web Audio). Muss einmal durch einen Klick freigeschaltet werden (iPhone).
+function unlockAudio() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch (e) {}
+}
+function playSound(kind = S().sound) {
+  if (kind === 'off' || !audioCtx) return;
+  const notes = kind === 'gong' ? [[196, 0, 2.6], [147, 0.05, 2.6]] : [[880, 0, 1.2], [1320, 0.18, 1.2], [880, 0.9, 1.2], [1320, 1.08, 1.4]];
+  const t0 = audioCtx.currentTime + 0.02;
+  notes.forEach(([f, at, dur]) => {
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t0 + at);
+    g.gain.exponentialRampToValueAtTime(0.35, t0 + at + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + dur);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t0 + at); o.stop(t0 + at + dur + 0.05);
+  });
+}
+function askNotify() {
+  try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); } catch (e) {}
+}
+function notify(text) {
+  try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('Fokus', { body: text }); } catch (e) {}
+}
+async function keepScreenOn(on) {
+  try {
+    if (on && 'wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); }
+    if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch (e) {}
+}
+
+function startPhase(phase, taskId, startAt = Date.now(), cycle = timer?.cycle || 0) {
+  const ms = phaseMs(phase);
+  timer = { phase, taskId, plannedMs: ms, startedAt: startAt, endAt: startAt + ms, pausedMs: null, cycle };
+  persistTimer(); ensureTick(); renderTimer();
+}
+function startFocus(taskId) {
+  unlockAudio(); askNotify();
+  if (timer && !timer.waiting && timer.phase === 'focus' && timer.taskId === taskId) { $('focusView').classList.remove('hidden'); keepScreenOn(true); return; }
+  if (timer && !timer.waiting && timer.phase === 'focus' && timer.taskId !== taskId) {
+    if (!confirm('Es läuft schon ein Pomodoro. Abbrechen und für diese Aufgabe neu starten?')) return;
+    finishFocus(Date.now(), true);
+  }
+  startPhase('focus', taskId, Date.now(), timer?.cycle || 0);
+}
+function pauseTimer() { if (!timer || timer.waiting || timer.pausedMs != null) return; timer.pausedMs = remainingMs(); timer.endAt = null; persistTimer(); renderTimer(); }
+function resumeTimer() { if (!timer || timer.pausedMs == null) return; unlockAudio(); timer.endAt = Date.now() + timer.pausedMs; timer.pausedMs = null; persistTimer(); ensureTick(); renderTimer(); }
+
+// Fokus-Einheit speichern. partial=true: vorzeitig beendet (zählt mit tatsächlicher Dauer, ab 1 Minute).
+async function finishFocus(endAt, partial = false) {
+  if (!timer || timer.phase !== 'focus') return;
+  const usedMs = timer.plannedMs - (partial ? remainingMs() : 0);
+  const minutes = Math.round(usedMs / 60000);
+  if (minutes < 1) return;
+  await saveSession({ task_id: timer.taskId, kind: 'focus', started_at: new Date(timer.startedAt).toISOString(), ended_at: new Date(endAt).toISOString(), duration_minutes: minutes, manual: false });
+}
+async function saveSession(row) {
+  const { data, error } = await db.from('pomodoro_sessions').insert(row).select().single();
+  if (error) return showError(error);
+  state.sessions.unshift(data);
+  render();
+}
+
+// Phase ist abgelaufen (kann auch mehrfach nachgeholt werden, wenn die App lange im Hintergrund war)
+let phaseBusy = false;   // verhindert doppeltes Speichern, wenn Tick und Rückkehr gleichzeitig auslösen
+async function phaseEnded() {
+  if (phaseBusy) return;
+  phaseBusy = true;
+  try { await phaseEndedInner(); } finally { phaseBusy = false; }
+}
+async function phaseEndedInner() {
+  while (timer && !timer.waiting && timer.pausedMs == null && Date.now() >= timer.endAt) {
+    const endAt = timer.endAt;
+    const t = taskById(timer.taskId);
+    let next;
+    if (timer.phase === 'focus') {
+      await finishFocus(endAt);
+      timer.cycle = (timer.cycle || 0) + 1;
+      next = timer.cycle % (S().long_break_every || 4) === 0 ? 'long' : 'short';
+      notify(`Pomodoro geschafft${t ? ': ' + t.title : ''}. Zeit für eine Pause.`);
+    } else {
+      next = 'focus';
+      notify('Pause vorbei. Weiter geht’s.');
+    }
+    playSound();
+    if (S().auto_continue) startPhase(next, timer.taskId, endAt, timer.cycle);
+    else { timer = { ...timer, waiting: next, endAt: null, pausedMs: null }; persistTimer(); }
+  }
+  renderTimer();
+}
+function continueNext() {
+  if (!timer?.waiting) return;
+  unlockAudio();
+  startPhase(timer.waiting, timer.taskId, Date.now(), timer.cycle);
+}
+function skipPhase() {
+  if (!timer) return;
+  if (timer.waiting) { // anstehende Pause überspringen → direkt Fokus
+    if (timer.waiting !== 'focus') { timer.waiting = 'focus'; persistTimer(); renderTimer(); }
+    return;
+  }
+  if (timer.phase === 'focus') {
+    if (!confirm('Pomodoro jetzt beenden? Die bisherige Zeit wird gespeichert.')) return;
+    finishFocus(Date.now(), true);
+    timer.cycle = (timer.cycle || 0) + 1;
+    timer = { ...timer, waiting: timer.cycle % (S().long_break_every || 4) === 0 ? 'long' : 'short', endAt: null, pausedMs: null };
+  } else {
+    timer = { ...timer, waiting: 'focus', endAt: null, pausedMs: null };
+  }
+  persistTimer(); renderTimer();
+}
+function stopTimer() {
+  if (!timer) return;
+  if (timer.phase === 'focus' && !timer.waiting) {
+    const mins = Math.round((timer.plannedMs - remainingMs()) / 60000);
+    const save = mins >= 1 && confirm(`Timer stoppen. ${mins} Minute${mins === 1 ? '' : 'n'} Fokuszeit speichern?\n\nOK = speichern, Abbrechen = verwerfen`);
+    if (save) finishFocus(Date.now(), true);
+  }
+  timer = null; persistTimer();
+  $('focusView').classList.add('hidden'); keepScreenOn(false);
+  renderTimer();
+}
+function ensureTick() {
+  if (tickHandle) return;
+  tickHandle = setInterval(() => {
+    if (!timer) { clearInterval(tickHandle); tickHandle = null; return; }
+    if (!timer.waiting && timer.pausedMs == null && Date.now() >= timer.endAt) phaseEnded();
+    else updateTimerClock();
+  }, 500);
+}
+
+// Erledigte Pomodoros einer Aufgabe = gesammelte Fokusminuten / Pomodoro-Länge
+function taskFocusMinutes(taskId) { return state.sessions.filter((s) => s.task_id === taskId && s.kind === 'focus').reduce((a, s) => a + (s.duration_minutes || 0), 0); }
+function taskPomosDone(taskId) { return Math.floor(taskFocusMinutes(taskId) / S().pomodoro_minutes + 0.1); }
+
+function updateTimerClock() {
+  if (!timer) return;
+  const rem = remainingMs();
+  const txt = timer.waiting ? '00:00' : fmtClock(rem);
+  $('tbClock').textContent = txt;
+  $('fvClock').textContent = txt;
+  const frac = timer.waiting ? 1 : 1 - rem / timer.plannedMs;
+  const C = 2 * Math.PI * 120;
+  $('fvRing').style.strokeDashoffset = String(C * (1 - frac));
+  document.title = timer.waiting ? 'Fokus – Aufgaben' : `${txt} · ${PHASE_LABEL[timer.phase]}`;
+}
+
+function renderTimer() {
+  const bar = $('timerBar'), fv = $('focusView');
+  if (!timer) { bar.classList.add('hidden'); fv.classList.add('hidden'); document.title = 'Fokus – Aufgaben'; document.body.classList.remove('has-timer'); return; }
+  document.body.classList.add('has-timer');
+  bar.classList.remove('hidden');
+  const t = taskById(timer.taskId);
+  const phase = timer.waiting ? timer.waiting : timer.phase;
+  const label = timer.waiting ? `Als Nächstes: ${PHASE_LABEL[timer.waiting]}` : PHASE_LABEL[timer.phase] + (timer.pausedMs != null ? ' · pausiert' : '');
+  bar.className = `phase-${timer.waiting ? 'wait' : phase}`;
+  fv.dataset.phase = timer.waiting ? 'wait' : phase;
+  $('tbLabel').textContent = label;
+  $('tbTask').textContent = t ? t.title : '';
+  $('fvLabel').textContent = label;
+  $('fvTask').textContent = t ? t.title : '';
+  const done = t ? taskPomosDone(t.id) : 0;
+  $('fvCount').textContent = t ? `${done}${t.estimate_pomodoros ? ' / ' + t.estimate_pomodoros : ''} Pomodoro${done === 1 && !t.estimate_pomodoros ? '' : 's'}` : '';
+  const running = !timer.waiting && timer.pausedMs == null;
+  const playPause = timer.waiting ? `▶ ${PHASE_LABEL[timer.waiting]} starten` : running ? '❚❚ Pause' : '▶ Weiter';
+  $('tbPlay').textContent = timer.waiting ? '▶' : running ? '❚❚' : '▶';
+  $('tbPlay').setAttribute('aria-label', playPause);
+  $('fvPlay').textContent = playPause;
+  $('fvSkip').textContent = timer.waiting ? 'Pause überspringen' : (timer.phase === 'focus' ? 'Fertig' : 'Pause beenden');
+  $('fvSkip').classList.toggle('hidden', timer.waiting === 'focus');
+  updateTimerClock();
+  if (running) ensureTick();
+}
+function playPauseClick() {
+  if (!timer) return;
+  if (timer.waiting) continueNext();
+  else if (timer.pausedMs != null) resumeTimer();
+  else pauseTimer();
+}
+
+// ================== Einstellungen ==================
+function openSettings() {
+  const s = S();
+  const m = $('modal');
+  m.innerHTML = `
+    <div class="box">
+      <h3>Einstellungen</h3>
+      <div class="grid2">
+        <div><label for="sPomo">Fokus (Minuten)</label><input type="number" id="sPomo" min="1" max="180" value="${s.pomodoro_minutes}"></div>
+        <div><label for="sEvery">Lange Pause nach</label><input type="number" id="sEvery" min="1" max="12" value="${s.long_break_every}"></div>
+        <div><label for="sShort">Kurze Pause (Min.)</label><input type="number" id="sShort" min="1" max="60" value="${s.short_break_minutes}"></div>
+        <div><label for="sLong">Lange Pause (Min.)</label><input type="number" id="sLong" min="1" max="120" value="${s.long_break_minutes}"></div>
+      </div>
+      <label class="switch-row"><input type="checkbox" id="sAuto" ${s.auto_continue ? 'checked' : ''}> <span>Dauermodus: nächste Phase startet automatisch</span></label>
+      <label for="sSound">Signalton</label>
+      <div style="display:flex;gap:8px">
+        <select id="sSound" style="flex:1">
+          <option value="bell" ${s.sound === 'bell' ? 'selected' : ''}>Glocke</option>
+          <option value="gong" ${s.sound === 'gong' ? 'selected' : ''}>Gong</option>
+          <option value="off" ${s.sound === 'off' ? 'selected' : ''}>Aus</option>
+        </select>
+        <button id="sTest">Anhören</button>
+      </div>
+      <div class="actions"><span class="spacer"></span><button id="sCancel">Abbrechen</button><button class="primary" id="sSave">Speichern</button></div>
+    </div>`;
+  m.classList.remove('hidden');
+  const close = () => m.classList.add('hidden');
+  m.onclick = (e) => { if (e.target === m) close(); };
+  $('sCancel').onclick = close;
+  $('sTest').onclick = () => { unlockAudio(); playSound($('sSound').value); };
+  $('sSave').onclick = async () => {
+    const num = (id, min, max) => Math.max(min, Math.min(max, parseInt($(id).value, 10) || min));
+    const row = {
+      user_id: state.user.id,
+      pomodoro_minutes: num('sPomo', 1, 180), short_break_minutes: num('sShort', 1, 60),
+      long_break_minutes: num('sLong', 1, 120), long_break_every: num('sEvery', 1, 12),
+      auto_continue: $('sAuto').checked, sound: $('sSound').value,
+    };
+    const { data, error } = await db.from('settings').upsert(row).select().single();
+    if (error) return showError(error);
+    state.settings = { ...DEFAULT_SETTINGS, ...data };
+    close(); render(); renderTimer();
+    toast('Einstellungen gespeichert');
+  };
 }
 
 // ================== Aufgaben ändern ==================
@@ -503,7 +849,7 @@ function renderSidebar() {
     item('all', 'Alle Aufgaben', '☰', null, `<span class="count">${counts.all || ''}</span>`) +
     projBlock('beruf', 'Beruf') +
     projBlock('privat', 'Privat') +
-    `<div class="sidebar-foot">${esc(state.user?.email || '')}<button id="logoutBtn">Abmelden</button></div>`;
+    `<div class="sidebar-foot">${esc(state.user?.email || '')}<button id="settingsBtn">⚙ Einstellungen</button><button id="logoutBtn">Abmelden</button></div>`;
 
   $('sidebar').querySelectorAll('.nav-item').forEach((el) => el.onclick = (e) => {
     if (e.target.closest('.edit')) return;
@@ -518,6 +864,7 @@ function renderSidebar() {
     $('pArea').value = b.dataset.area;
   });
   $('logoutBtn').onclick = logout;
+  $('settingsBtn').onclick = () => { closeSidebar(); openSettings(); };
 }
 
 function taskHtml(t, opts = {}) {
@@ -527,17 +874,25 @@ function taskHtml(t, opts = {}) {
   const meta = [];
   if (t.due_date) meta.push(`<span class="chip ${late ? 'late' : ''}">📅 ${fmtDate(t.due_date)}${t.due_time ? ' ' + t.due_time.slice(0, 5) : ''}</span>`);
   if (t.recurrence) meta.push(`<span class="chip">↻ ${esc(ruleLabel(t.recurrence))}</span>`);
-  if (t.estimate_pomodoros) {
-    const n = t.estimate_pomodoros;
-    meta.push(`<span class="chip pomo" title="${n} Pomodoro${n === 1 ? '' : 's'} geschätzt">${'🍅'.repeat(Math.min(n, 5))}${n > 5 ? ` <span class="pomo-n">${n}</span>` : ''}</span>`);
+  {
+    // Tomaten: erledigte kräftig, noch geschätzte blass. Max. 5 Symbole, darüber Zahl.
+    const est = t.estimate_pomodoros || 0, done = taskPomosDone(t.id), total = Math.max(est, done);
+    if (total) {
+      const shown = Math.min(total, 5), full = Math.min(done, shown);
+      const icons = '<span class="tm">🍅</span>'.repeat(full) + '<span class="tm off">🍅</span>'.repeat(shown - full);
+      const num = total > 5 ? ` <span class="pomo-n">${est ? `${done}/${est}` : done}</span>` : '';
+      meta.push(`<span class="chip pomo" title="${done} erledigt${est ? `, ${est} geschätzt` : ''}">${icons}${num}</span>`);
+    }
   }
   if (subs.length) meta.push(`<span class="chip">☑ ${subs.filter((s) => s.done).length}/${subs.length}</span>`);
   if (t.notes) meta.push('<span class="chip">✎</span>');
   if (proj && state.view.type !== 'project') meta.push(`<span class="chip"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:${esc(proj.color || COLORS[0])}"></span>${esc(proj.name)}</span>`);
   (t.tags || []).forEach((g) => meta.push(`<span class="tag">#${esc(g)}</span>`));
-  return `<div class="task ${t.done ? 'done' : ''} ${state.selectedId === t.id ? 'selected' : ''}" data-id="${t.id}">
+  const active = timer && timer.taskId === t.id && !timer.waiting && timer.phase === 'focus';
+  return `<div class="task ${t.done ? 'done' : ''} ${state.selectedId === t.id ? 'selected' : ''} ${active ? 'active' : ''}" data-id="${t.id}">
     ${opts.sortable ? '<span class="drag" aria-hidden="true">⋮⋮</span>' : ''}
     <button class="check p${t.priority || 0} ${t.done ? 'on' : ''}" data-check="${t.id}" aria-label="Erledigt"></button>
+    ${t.done ? '' : `<button class="play ${active ? 'on' : ''}" data-play="${t.id}" aria-label="Pomodoro starten" title="Pomodoro starten">▶</button>`}
     <div class="body"><div class="title">${esc(t.title)}</div>${meta.length ? `<div class="meta">${meta.join('')}</div>` : ''}</div>
   </div>`;
 }
@@ -577,11 +932,12 @@ function renderList() {
   el.innerHTML = html;
 
   el.querySelectorAll('.task').forEach((row) => row.onclick = (e) => {
-    if (e.target.closest('.check') || e.target.closest('.drag')) return;
+    if (e.target.closest('.check') || e.target.closest('.drag') || e.target.closest('.play')) return;
     state.selectedId = row.dataset.id;
     render();
   });
   el.querySelectorAll('[data-check]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); toggleDone(b.dataset.check); });
+  el.querySelectorAll('[data-play]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); startFocus(b.dataset.play); render(); });
   if ($('doneToggle')) $('doneToggle').onclick = () => { state.showDone = !state.showDone; renderList(); };
 
   el.querySelectorAll('.sort-zone').forEach((zone) => {
@@ -667,6 +1023,30 @@ function renderDetail() {
       </div>`).join('')}</div>
     <div class="sub-add"><input id="dSubNew" placeholder="Unteraufgabe hinzufügen"><button id="dSubAdd">+</button></div>
 
+    <label>Fokuszeit</label>
+    <div class="focus-box">
+      <div class="focus-head">
+        <span>${taskPomosDone(t.id)} Pomodoro${taskPomosDone(t.id) === 1 ? '' : 's'} · ${taskFocusMinutes(t.id)} Min.</span>
+        ${t.done ? '' : `<button class="primary" id="dStartPomo">▶ Starten</button>`}
+      </div>
+      ${(() => {
+        const ss = state.sessions.filter((s) => s.task_id === t.id).sort((a, b) => b.started_at.localeCompare(a.started_at)).slice(0, 8);
+        return ss.length ? `<div class="sess-list">${ss.map((s) => {
+          const d = new Date(s.started_at);
+          return `<div class="sess"><span>${d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })} ${pad(d.getHours())}:${pad(d.getMinutes())}</span><span>${s.duration_minutes} Min.${s.manual ? ' · nachgetragen' : ''}</span><button class="ghost del" data-sessdel="${s.id}" aria-label="Eintrag löschen">✕</button></div>`;
+        }).join('')}</div>` : '';
+      })()}
+      <button class="ghost link" id="dAddTimeBtn">+ Zeit nachtragen</button>
+      <div id="dAddTime" class="hidden">
+        <div class="grid3">
+          <div><label for="mDate">Datum</label><input type="date" id="mDate" value="${todayStr()}"></div>
+          <div><label for="mTime">Beginn</label><input type="time" id="mTime" value="${(() => { const d = new Date(Date.now() - S().pomodoro_minutes * 60000); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; })()}"></div>
+          <div><label for="mMin">Minuten</label><input type="number" id="mMin" min="1" max="600" value="${S().pomodoro_minutes}"></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px"><button id="mCancel">Abbrechen</button><button class="primary" id="mSave">Speichern</button></div>
+      </div>
+    </div>
+
     <label for="dNotes">Notizen</label>
     <textarea id="dNotes" placeholder="Details, Links, Gedanken …">${esc(t.notes || '')}</textarea>
 
@@ -706,6 +1086,28 @@ function renderDetail() {
   $('dNotes').oninput = (e) => { clearTimeout(saveTimer); saveTimer = setTimeout(() => save({ notes: e.target.value }), 600); };
   $('dDelete').onclick = () => deleteTask(t.id);
 
+  // Fokuszeit
+  if ($('dStartPomo')) $('dStartPomo').onclick = () => { startFocus(t.id); render(); };
+  $('dAddTimeBtn').onclick = () => { $('dAddTime').classList.remove('hidden'); $('dAddTimeBtn').classList.add('hidden'); };
+  $('mCancel').onclick = () => { $('dAddTime').classList.add('hidden'); $('dAddTimeBtn').classList.remove('hidden'); };
+  $('mSave').onclick = async () => {
+    const mins = Math.max(1, Math.min(600, parseInt($('mMin').value, 10) || 0));
+    if (!$('mDate').value || !$('mTime').value) return toast('Bitte Datum und Beginn angeben');
+    const [y, mo, da] = $('mDate').value.split('-').map(Number);
+    const [h, mi] = $('mTime').value.split(':').map(Number);
+    const start = new Date(y, mo - 1, da, h, mi);
+    await saveSession({ task_id: t.id, kind: 'focus', started_at: start.toISOString(), ended_at: new Date(start.getTime() + mins * 60000).toISOString(), duration_minutes: mins, manual: true });
+    toast(`${mins} Min. nachgetragen`);
+  };
+  d.querySelectorAll('[data-sessdel]').forEach((b) => b.onclick = async () => {
+    if (!confirm('Diesen Fokus-Eintrag löschen?')) return;
+    const id = b.dataset.sessdel;
+    const { error } = await db.from('pomodoro_sessions').delete().eq('id', id);
+    if (error) return showError(error);
+    state.sessions = state.sessions.filter((s) => s.id !== id);
+    render();
+  });
+
   const addSub = async () => {
     const v = $('dSubNew').value.trim();
     if (!v) return;
@@ -743,13 +1145,24 @@ function showApp(user) {
   state.user = user;
   $('auth').classList.add('hidden');
   $('app').classList.remove('hidden');
-  loadData();
+  loadTimer();
+  loadData().then(() => { if (timer) { ensureTick(); phaseEnded(); } });
 }
 function showAuth() {
-  state.user = null; state.tasks = []; state.projects = [];
+  state.user = null; state.tasks = []; state.projects = []; state.sessions = [];
+  timer = null; renderTimer();
   $('app').classList.add('hidden');
   $('auth').classList.remove('hidden');
 }
+
+// Timer-Bedienelemente
+$('tbPlay').onclick = playPauseClick;
+$('fvPlay').onclick = playPauseClick;
+$('tbStop').onclick = stopTimer;
+$('fvStop').onclick = stopTimer;
+$('fvSkip').onclick = skipPhase;
+$('tbOpen').onclick = () => { $('focusView').classList.remove('hidden'); keepScreenOn(true); };
+$('fvClose').onclick = () => { $('focusView').classList.add('hidden'); keepScreenOn(false); };
 
 $('loginBtn').onclick = login;
 $('signupBtn').onclick = signup;
@@ -760,10 +1173,18 @@ $('menuBtn').onclick = openSidebar;
 $('backdrop').onclick = closeSidebar;
 $('refreshBtn').onclick = () => loadData().then(() => toast('Aktualisiert'));
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { if (!$('modal').classList.contains('hidden')) $('modal').classList.add('hidden'); else if (state.selectedId) { state.selectedId = null; render(); } }
+  if (e.key === 'Escape') {
+    if (!$('modal').classList.contains('hidden')) $('modal').classList.add('hidden');
+    else if (!$('focusView').classList.contains('hidden')) $('fvClose').click();
+    else if (state.selectedId) { state.selectedId = null; render(); }
+  }
 });
-// Abgleich mit anderen Geräten: beim Zurückkehren zur App neu laden
-document.addEventListener('visibilitychange', () => { if (!document.hidden && state.user) loadData(); });
+// Abgleich mit anderen Geräten: beim Zurückkehren zur App neu laden; abgelaufene Timer-Phasen nachholen
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !state.user) return;
+  loadData().then(() => { if (timer) phaseEnded(); });
+  if (!$('focusView').classList.contains('hidden')) keepScreenOn(true);
+});
 
 db.auth.onAuthStateChange((_event, session) => {
   // setTimeout: Datenbankabfragen nicht direkt im Auth-Callback starten (vermeidet Blockieren in supabase-js)

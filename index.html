@@ -57,7 +57,16 @@
   header.top h2 { margin: 0; font-size: 20px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #menuBtn { display: none; }
   .add-row { display: flex; gap: 8px; padding: 14px 18px 4px; }
-  .add-row input { flex: 1; }
+  .add-row { align-items: flex-start; }
+  .add-row textarea { flex: 1; min-height: 40px; resize: none; line-height: 1.35; overflow-y: auto; }
+  #micBtn.rec { background: #d9534f; border-color: #d9534f; color: #fff; animation: pulse 1.2s infinite; }
+  @keyframes pulse { 50% { opacity: .6; } }
+  .quick-preview { padding: 0 18px; }
+  .qp-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; padding: 4px 0; }
+  .qp-title { color: var(--text); font-weight: 500; margin-right: 2px; }
+  .qp-chip { background: var(--accent-soft); color: var(--accent); border-radius: 6px; padding: 1px 7px; }
+  .qp-chip.warn { background: #fdecea; color: var(--danger); }
+  .quick-help { margin: 4px 18px 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
   #list { flex: 1; overflow-y: auto; padding: 8px 18px 80px; }
   .group-title { font-size: 13px; color: var(--muted); margin: 18px 4px 6px; font-weight: 600; }
   .task { display: flex; align-items: flex-start; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 6px; cursor: pointer; }
@@ -209,8 +218,16 @@
       <button id="refreshBtn" class="ghost" title="Neu laden" aria-label="Neu laden">⟳</button>
     </header>
     <div class="add-row">
-      <input id="newTask" placeholder="Neue Aufgabe … (Enter)" autocomplete="off">
-      <button class="primary" id="addBtn">+</button>
+      <textarea id="newTask" rows="1" placeholder="Neue Aufgabe … z. B. „Angebot Müller morgen 10 Uhr @business“" autocomplete="off" enterkeyhint="done"></textarea>
+      <button id="micBtn" class="hidden" aria-label="Diktieren" title="Diktieren">🎤</button>
+      <button class="primary" id="addBtn" aria-label="Hinzufügen">+</button>
+    </div>
+    <div id="quickPreview" class="quick-preview"></div>
+    <div id="quickHelp" class="quick-help hidden">
+      <b>Erkannt wird:</b> heute · morgen · übermorgen · Montag … Sonntag · nächste Woche · in 3 Tagen · 24.12. · 3. März ·
+      10 Uhr · um 14:30 · jeden Montag · täglich · werktags · wöchentlich · monatlich · alle 3 Wochen · jährlich ·
+      !!! hoch · !! mittel · ! niedrig · 3 Pomodoros · #tag · @liste.
+      Mehrere Aufgaben auf einmal: mit neuer Zeile oder Semikolon trennen.
     </div>
     <div id="list"></div>
   </main>
@@ -340,6 +357,105 @@ function fmtDate(s) {
   const wd = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][d.getDay()];
   const sameYear = d.getFullYear() === new Date().getFullYear();
   return `${wd}, ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${sameYear ? '' : d.getFullYear()}`;
+}
+
+// ================== Schnelleingabe: Text verstehen ==================
+// Beispiel: "Angebot Müller morgen 10 Uhr @business #angebot !!! 2 pomodoros jede woche"
+const WEEKDAYS = ['sonntag', 'montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag'];
+const MONTHS = { jan: 1, januar: 1, feb: 2, februar: 2, mär: 3, märz: 3, maerz: 3, apr: 4, april: 4, mai: 5, jun: 6, juni: 6, jul: 7, juli: 7, aug: 8, august: 8, sep: 9, sept: 9, september: 9, okt: 10, oktober: 10, nov: 11, november: 11, dez: 12, dezember: 12 };
+const NUMWORDS = { ein: 1, einen: 1, eine: 1, einem: 1, einer: 1, zwei: 2, drei: 3, vier: 4, fünf: 5, sechs: 6, sieben: 7, acht: 8, neun: 9, zehn: 10, zwölf: 12 };
+const UNITMAP = (u) => u.startsWith('tag') ? 'DAILY' : u.startsWith('woche') ? 'WEEKLY' : u.startsWith('monat') ? 'MONTHLY' : 'YEARLY';
+
+function parseQuick(text, projects = state.projects, now = new Date()) {
+  const r = { hits: [] };
+  let s = ' ' + text + ' ';
+  const B = '(?<![\\p{L}\\d])', E = '(?![\\p{L}\\d])';
+  const rx = (src) => new RegExp(src.replace(/\\b<|\\b>/g, (m) => (m === '\\b<' ? B : E)), 'iu');
+  const take = (re, fn) => { const m = s.match(re); if (!m) return false; if (fn(m) === false) return false; s = s.slice(0, m.index) + ' ' + s.slice(m.index + m[0].length); return true; };
+  const today = toDateStr(now);
+  const num = (w) => (/^\d+$/.test(w) ? parseInt(w, 10) : NUMWORDS[w.toLowerCase()]);
+  const nextWeekday = (idx, allowToday = false) => { const d = new Date(now); let diff = (idx - d.getDay() + 7) % 7; if (diff === 0 && !allowToday) diff = 7; d.setDate(d.getDate() + diff); return toDateStr(d); };
+  const validDate = (y, m, d) => { const dt = new Date(y, m - 1, d); return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d ? toDateStr(dt) : null; };
+  const futureDate = (m, d, y) => {
+    if (y) return validDate(y < 100 ? 2000 + y : y, m, d);
+    let iso = validDate(now.getFullYear(), m, d);
+    if (iso && iso < today) iso = validDate(now.getFullYear() + 1, m, d);
+    return iso;
+  };
+  const wd = WEEKDAYS.join('|');
+
+  // Wiederholung
+  take(rx(`\\b<(?:alle|jede[nrs]?)\\s+(\\d+|${Object.keys(NUMWORDS).join('|')})\\s+(tage?n?|wochen?|monate?n?|jahre?n?)\\b>`), (m) => { const n = num(m[1]); if (!n) return false; r.recurrence = buildRule(UNITMAP(m[2].toLowerCase()), n); });
+  if (!r.recurrence) take(rx(`\\b<(?:jeden|immer|jeweils)\\s+(?:am\\s+)?(${wd})\\b>`), (m) => { r.recurrence = 'FREQ=WEEKLY'; r.due_date = nextWeekday(WEEKDAYS.indexOf(m[1].toLowerCase()), true); });
+  if (!r.recurrence) take(rx('\\b<(täglich|jeden\\s+tag)\\b>'), () => { r.recurrence = 'FREQ=DAILY'; });
+  if (!r.recurrence) take(rx('\\b<(werktags|jeden\\s+werktag)\\b>'), () => { r.recurrence = 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'; });
+  if (!r.recurrence) take(rx('\\b<(wöchentlich|jede\\s+woche)\\b>'), () => { r.recurrence = 'FREQ=WEEKLY'; });
+  if (!r.recurrence) take(rx('\\b<(vierteljährlich|quartalsweise|jedes\\s+quartal)\\b>'), () => { r.recurrence = 'FREQ=MONTHLY;INTERVAL=3'; });
+  if (!r.recurrence) take(rx('\\b<(halbjährlich)\\b>'), () => { r.recurrence = 'FREQ=MONTHLY;INTERVAL=6'; });
+  if (!r.recurrence) take(rx('\\b<(monatlich|jeden\\s+monat)\\b>'), () => { r.recurrence = 'FREQ=MONTHLY'; });
+  if (!r.recurrence) take(rx('\\b<(jährlich|jedes\\s+jahr)\\b>'), () => { r.recurrence = 'FREQ=YEARLY'; });
+
+  // Uhrzeit (vor dem Datum, damit "10.30 Uhr" kein Datum wird)
+  take(rx('\\b<(?:um\\s+)?([01]?\\d|2[0-3])(?:[:.]([0-5]\\d))?\\s*uhr\\b>'), (m) => { r.due_time = `${pad(m[1])}:${m[2] || '00'}`; })
+    || take(rx('\\b<um\\s+([01]?\\d|2[0-3])(?:[:.]([0-5]\\d))?\\b>'), (m) => { r.due_time = `${pad(m[1])}:${m[2] || '00'}`; })
+    || take(rx('\\b<([01]?\\d|2[0-3]):([0-5]\\d)\\b>'), (m) => { r.due_time = `${pad(m[1])}:${m[2]}`; });
+
+  // Datum
+  if (!r.due_date) {
+    take(rx(`\\b<in\\s+(\\d+|${Object.keys(NUMWORDS).join('|')})\\s+(tage?n?|wochen?|monate?n?|jahre?n?)\\b>`), (m) => {
+      const n = num(m[1]); if (!n) return false;
+      const u = UNITMAP(m[2].toLowerCase());
+      r.due_date = u === 'DAILY' ? addDays(today, n) : u === 'WEEKLY' ? addDays(today, 7 * n) : nextDate(today, buildRule(u === 'YEARLY' ? 'MONTHLY' : 'MONTHLY', u === 'YEARLY' ? 12 * n : n));
+    })
+    || take(rx('\\b<(?:am\\s+|bis\\s+(?:zum\\s+)?)?(\\d{1,2})\\.(\\d{1,2})\\.(\\d{2}|\\d{4})?\\b>'), (m) => { const iso = futureDate(+m[2], +m[1], m[3] ? +m[3] : null); if (!iso) return false; r.due_date = iso; })
+    || take(rx(`\\b<(?:am\\s+|bis\\s+(?:zum\\s+)?)?(\\d{1,2})\\.?\\s+(${Object.keys(MONTHS).join('|')})\\.?(?:\\s+(\\d{4}))?\\b>`), (m) => { const iso = futureDate(MONTHS[m[2].toLowerCase()], +m[1], m[3] ? +m[3] : null); if (!iso) return false; r.due_date = iso; })
+    || take(rx('\\b<(übermorgen)\\b>'), () => { r.due_date = addDays(today, 2); })
+    || take(rx('\\b<(heute)\\b>'), () => { r.due_date = today; })
+    || take(rx('\\b<(morgen)\\b>'), () => { r.due_date = addDays(today, 1); })
+    || take(rx('\\b<(?:nächste|kommende)\\s+woche\\b>'), () => { r.due_date = nextWeekday(1); })
+    || take(rx(`\\b<(?:am\\s+|nächsten\\s+|kommenden\\s+|bis\\s+)?(${wd})\\b>`), (m) => { r.due_date = nextWeekday(WEEKDAYS.indexOf(m[1].toLowerCase())); });
+  }
+
+  // Priorität: !!! hoch, !! mittel, ! niedrig (oder !hoch / !mittel / !niedrig)
+  take(/(^|\s)!(hoch|mittel|niedrig)(?=\s)/iu, (m) => { r.priority = { hoch: 3, mittel: 2, niedrig: 1 }[m[2].toLowerCase()]; })
+    || take(/(^|\s)(!{1,3})(?=\s)/u, (m) => { r.priority = m[2].length; });
+
+  // Pomodoros: "3 pomodoros", "3 pomos", "3 tomaten", "🍅3", "🍅🍅🍅"
+  take(rx('\\b<(\\d{1,2})\\s*(?:pomodoros?|pomos?|tomaten?)\\b>'), (m) => { r.estimate_pomodoros = +m[1]; })
+    || take(/🍅\s*(\d{1,2})/u, (m) => { r.estimate_pomodoros = +m[1]; })
+    || take(/(🍅)+/u, (m) => { r.estimate_pomodoros = [...m[0]].filter((c) => c === '🍅').length; });
+
+  // Tags (#wort) – mehrere möglich
+  r.tags = [];
+  while (take(/(^|\s)#([\p{L}\d_-]+)/u, (m) => { r.tags.push(m[2].toLowerCase()); }));
+
+  // Liste (@name): passt auf Namensanfang oder ein Wort im Namen
+  take(/(^|\s)@([\p{L}\d_-]+)/u, (m) => {
+    const q = m[2].toLowerCase();
+    const norm = (x) => x.toLowerCase();
+    const p = projects.find((x) => norm(x.name) === q) || projects.find((x) => norm(x.name).startsWith(q))
+      || projects.find((x) => norm(x.name).split(/[\s,&]+/).some((w) => w.startsWith(q)));
+    if (!p) { r.unknownList = m[2]; return false; }
+    r.project_id = p.id;
+  });
+
+  // Titel aufräumen
+  let title = s.replace(/\s+/g, ' ').trim().replace(/^[,;:\-–\s]+|[,;:\-–\s]+$/g, '').replace(/\s+(am|um|bis|zum)$/i, '').trim();
+  r.title = title || text.trim();
+  return r;
+}
+
+function quickChips(r) {
+  const c = [];
+  if (r.due_date) c.push(`📅 ${fmtDate(r.due_date)}${r.due_time ? ' ' + r.due_time : ''}`);
+  else if (r.due_time) c.push(`🕑 ${r.due_time}`);
+  if (r.recurrence) c.push(`↻ ${ruleLabel(r.recurrence)}`);
+  if (r.project_id) c.push(`📋 ${projectById(r.project_id)?.name || ''}`);
+  if (r.unknownList) c.push(`⚠ Liste „${r.unknownList}“ nicht gefunden`);
+  if (r.priority) c.push(`⚑ ${PRIO_LABEL[r.priority]}`);
+  if (r.estimate_pomodoros) c.push('🍅'.repeat(Math.min(r.estimate_pomodoros, 5)) + (r.estimate_pomodoros > 5 ? ' ' + r.estimate_pomodoros : ''));
+  (r.tags || []).forEach((t) => c.push('#' + t));
+  return c;
 }
 
 function toast(text, ms = 2600) {
@@ -660,24 +776,84 @@ function openSettings() {
 // ================== Aufgaben ändern ==================
 function nextSortOrder(list) { return list.length ? Math.max(...list.map((x) => x.sort_order || 0)) + 1 : 1; }
 
-async function addTask(title, extra = {}) {
+async function addTask(title, extra = {}, opts = { open: true }) {
   title = title.trim();
   if (!title) return;
   const isSub = 'parent_id' in extra;
   // Neue Hauptaufgaben oben einsortieren, Unteraufgaben unten
   const minOrder = state.tasks.length ? Math.min(...state.tasks.map((x) => x.sort_order || 0)) : 1;
-  const row = { title, sort_order: isSub ? nextSortOrder(state.tasks) : minOrder - 1, ...extra };
+  const row = { title, sort_order: isSub ? nextSortOrder(state.tasks) : minOrder - 1 };
   if (!isSub) {
+    // Vorgaben aus der aktuellen Ansicht – Erkanntes aus dem Text hat Vorrang
     if (state.view.type === 'project') row.project_id = state.view.id;
     if (state.view.type === 'today' || state.view.type === 'upcoming') row.due_date = todayStr();
   }
+  Object.assign(row, extra);
   const { data, error } = await db.from('tasks').insert(row).select().single();
   if (error) return showError(error);
   state.tasks.push(data);
-  if (!isSub) state.selectedId = data.id;   // neue Aufgabe direkt zum Bearbeiten öffnen
+  if (!isSub && opts.open) state.selectedId = data.id;   // neue Aufgabe direkt zum Bearbeiten öffnen
   render();
   if (!isSub) document.getElementById('list').scrollTop = 0;
   return data;
+}
+
+// Eingabefeld auswerten: eine oder mehrere Aufgaben (Zeilen oder Semikolon)
+async function addFromInput() {
+  const raw = $('newTask').value;
+  const parts = raw.split(/\n|;/).map((x) => x.trim()).filter(Boolean);
+  if (!parts.length) return;
+  $('newTask').value = ''; autoGrow(); updatePreview();
+  const created = [];
+  for (const part of parts) {
+    const r = parseQuick(part);
+    const extra = {};
+    for (const k of ['due_date', 'due_time', 'recurrence', 'project_id', 'priority', 'estimate_pomodoros']) if (r[k] != null) extra[k] = r[k];
+    if (r.tags.length) extra.tags = r.tags;
+    if (r.recurrence && !extra.due_date) extra.due_date = todayStr();
+    const t = await addTask(r.title, extra, { open: parts.length === 1 });
+    if (t) created.push(t);
+  }
+  if (created.length > 1) toast(`${created.length} Aufgaben angelegt`);
+  else if (created.length === 1 && !tasksForView().some((x) => x.id === created[0].id)) {
+    const t = created[0];
+    toast(`Angelegt${t.due_date ? ' für ' + fmtDate(t.due_date) : ''}${t.project_id ? ' in ' + (projectById(t.project_id)?.name || '') : ''}`);
+  }
+}
+
+function updatePreview() {
+  const v = $('newTask').value;
+  const el = $('quickPreview');
+  const parts = v.split(/\n|;/).map((x) => x.trim()).filter(Boolean);
+  if (!parts.length) { el.innerHTML = ''; return; }
+  el.innerHTML = parts.map((p) => {
+    const r = parseQuick(p);
+    const chips = quickChips(r);
+    return `<div class="qp-row"><span class="qp-title">${esc(r.title)}</span>${chips.map((c) => `<span class="qp-chip ${c.startsWith('⚠') ? 'warn' : ''}">${esc(c)}</span>`).join('')}</div>`;
+  }).join('');
+}
+function autoGrow() { const t = $('newTask'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 160) + 'px'; }
+
+// Diktieren (Spracherkennung des Browsers, falls vorhanden)
+let recog = null;
+function setupMic() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return;
+  $('micBtn').classList.remove('hidden');
+  $('micBtn').onclick = () => {
+    if (recog) { recog.stop(); return; }
+    recog = new SR();
+    recog.lang = 'de-DE'; recog.interimResults = true; recog.continuous = false;
+    const base = $('newTask').value ? $('newTask').value.replace(/\s*$/, '\n') : '';
+    recog.onresult = (e) => {
+      const txt = [...e.results].map((x) => x[0].transcript).join(' ');
+      $('newTask').value = base + txt; autoGrow(); updatePreview();
+    };
+    recog.onerror = (e) => { if (e.error === 'not-allowed') toast('Mikrofon nicht erlaubt. Bitte in den Browser-Einstellungen freigeben.', 4500); };
+    recog.onend = () => { recog = null; $('micBtn').classList.remove('rec'); $('newTask').focus(); };
+    $('micBtn').classList.add('rec');
+    recog.start();
+  };
 }
 
 async function updateTask(id, patch) {
@@ -776,7 +952,7 @@ function openProjectModal(project) {
       if (error) return showError(error);
       Object.assign(p, row);
     }
-    close(); render();
+    close(); closeSidebar(); render();
   };
   if (!isNew) $('pDel').onclick = async () => {
     const n = state.tasks.filter((t) => t.project_id === p.id).length;
@@ -1167,8 +1343,13 @@ $('fvClose').onclick = () => { $('focusView').classList.add('hidden'); keepScree
 $('loginBtn').onclick = login;
 $('signupBtn').onclick = signup;
 $('authPass').onkeydown = (e) => { if (e.key === 'Enter') login(); };
-$('addBtn').onclick = () => { addTask($('newTask').value); $('newTask').value = ''; };
-$('newTask').onkeydown = (e) => { if (e.key === 'Enter') { addTask($('newTask').value); $('newTask').value = ''; } };
+$('addBtn').onclick = addFromInput;
+// Enter = anlegen; Umschalt+Enter = neue Zeile (für mehrere Aufgaben)
+$('newTask').onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); addFromInput(); } };
+$('newTask').oninput = () => { autoGrow(); updatePreview(); $('quickHelp').classList.toggle('hidden', !!$('newTask').value); };
+$('newTask').onfocus = () => $('quickHelp').classList.toggle('hidden', !!$('newTask').value);
+$('newTask').onblur = () => setTimeout(() => $('quickHelp').classList.add('hidden'), 150);
+setupMic();
 $('menuBtn').onclick = openSidebar;
 $('backdrop').onclick = closeSidebar;
 $('refreshBtn').onclick = () => loadData().then(() => toast('Aktualisiert'));

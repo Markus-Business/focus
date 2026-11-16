@@ -72,6 +72,8 @@
   .meta { display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 12.5px; color: var(--muted); margin-top: 4px; }
   .meta .late { color: var(--danger); }
   .chip { display: inline-flex; align-items: center; gap: 4px; }
+  .chip.pomo { gap: 0; letter-spacing: -1px; font-size: 12px; }
+  .chip.pomo .pomo-n { letter-spacing: 0; margin-left: 4px; font-weight: 600; color: #d9534f; }
   .tag { background: var(--bg); border-radius: 6px; padding: 1px 6px; }
   .drag { color: #c3c2bc; cursor: grab; padding: 0 2px; font-size: 18px; line-height: 22px; touch-action: none; }
   .sortable-ghost { opacity: .4; }
@@ -86,6 +88,18 @@
   .prio-row { display: flex; gap: 6px; }
   .prio-row button { flex: 1; padding: 7px 0; font-size: 14px; }
   .prio-row button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .rec-wrap { position: relative; }
+  .rec-btn { width: 100%; text-align: left; padding: 9px 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rec-btn.on { color: var(--text); }
+  .rec-pop { position: absolute; z-index: 20; right: 0; top: calc(100% + 10px); width: 270px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; box-shadow: 0 8px 28px rgba(0,0,0,.14); }
+  .rec-pop::before { content: ""; position: absolute; top: -7px; right: 28px; width: 12px; height: 12px; background: var(--panel); border-left: 1px solid var(--line); border-top: 1px solid var(--line); transform: rotate(45deg); }
+  .rec-row { display: flex; align-items: center; gap: 8px; }
+  .rec-row span { color: var(--muted); }
+  .rec-row input { width: 70px; flex: none; }
+  .rec-row select { flex: 1; }
+  .rec-actions { display: flex; gap: 8px; margin-top: 14px; }
+  .rec-actions button { flex: 1; }
+  .rec-actions .ok { background: #e05a4f; border-color: #e05a4f; color: #fff; }
   .sub { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
   .sub .title { flex: 1; min-width: 0; word-wrap: break-word; }
   .sub.done .title { text-decoration: line-through; color: var(--muted); }
@@ -167,18 +181,6 @@ const SUPABASE_KEY = 'sb_publishable_a0VDBiCCZDVBxmIDNglU1Q_5QREHDRB';
 
 const COLORS = ['#2f6fdf', '#1d9e75', '#e2a23b', '#d9534f', '#8e5bd8', '#d4537e', '#5f5e5a', '#3aa3c9'];
 const PRIO_LABEL = ['Keine', 'Niedrig', 'Mittel', 'Hoch'];
-const RECUR = [
-  ['', 'Keine'],
-  ['FREQ=DAILY', 'Täglich'],
-  ['FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR', 'Werktags (Mo–Fr)'],
-  ['FREQ=WEEKLY', 'Wöchentlich'],
-  ['FREQ=WEEKLY;INTERVAL=2', 'Alle 2 Wochen'],
-  ['FREQ=MONTHLY', 'Monatlich'],
-  ['FREQ=MONTHLY;INTERVAL=3', 'Vierteljährlich'],
-  ['FREQ=MONTHLY;INTERVAL=6', 'Halbjährlich'],
-  ['FREQ=YEARLY', 'Jährlich'],
-  ['custom', 'Eigener Abstand …'],
-];
 const UNIT = { DAILY: ['Tag', 'Tage'], WEEKLY: ['Woche', 'Wochen'], MONTHLY: ['Monat', 'Monate'], YEARLY: ['Jahr', 'Jahre'] };
 
 // Regel wie "FREQ=WEEKLY;INTERVAL=3" zerlegen
@@ -194,12 +196,12 @@ function parseRule(rule) {
 }
 function buildRule(freq, interval) { return interval > 1 ? `FREQ=${freq};INTERVAL=${interval}` : `FREQ=${freq}`; }
 function ruleLabel(rule) {
+  if (!rule) return 'Nicht wiederholen';
   const r = parseRule(rule);
-  const norm = r.weekdays ? rule : (r.freq ? buildRule(r.freq, r.interval) : rule);
-  const preset = RECUR.find(([v]) => v === rule || v === norm);
-  if (preset) return preset[1];
+  if (r.weekdays) return 'Werktags';
   if (!r.freq || !UNIT[r.freq]) return 'Wiederholung';
-  return `Alle ${r.interval} ${UNIT[r.freq][r.interval === 1 ? 0 : 1]}`;
+  if (r.interval === 1) return { DAILY: 'Täglich', WEEKLY: 'Wöchentlich', MONTHLY: 'Monatlich', YEARLY: 'Jährlich' }[r.freq];
+  return `Alle ${r.interval} ${UNIT[r.freq][1]}`;
 }
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -211,7 +213,6 @@ const state = {
   view: { type: 'today', id: null },
   showDone: false,
   selectedId: null,
-  customRecFor: null,   // Aufgabe, bei der "Eigener Abstand" gerade bearbeitet wird
 };
 
 // ================== Hilfsfunktionen ==================
@@ -316,15 +317,20 @@ function nextSortOrder(list) { return list.length ? Math.max(...list.map((x) => 
 async function addTask(title, extra = {}) {
   title = title.trim();
   if (!title) return;
-  const row = { title, sort_order: nextSortOrder(state.tasks), ...extra };
-  if (!('parent_id' in extra)) {
+  const isSub = 'parent_id' in extra;
+  // Neue Hauptaufgaben oben einsortieren, Unteraufgaben unten
+  const minOrder = state.tasks.length ? Math.min(...state.tasks.map((x) => x.sort_order || 0)) : 1;
+  const row = { title, sort_order: isSub ? nextSortOrder(state.tasks) : minOrder - 1, ...extra };
+  if (!isSub) {
     if (state.view.type === 'project') row.project_id = state.view.id;
     if (state.view.type === 'today' || state.view.type === 'upcoming') row.due_date = todayStr();
   }
   const { data, error } = await db.from('tasks').insert(row).select().single();
   if (error) return showError(error);
   state.tasks.push(data);
+  if (!isSub) state.selectedId = data.id;   // neue Aufgabe direkt zum Bearbeiten öffnen
   render();
+  if (!isSub) document.getElementById('list').scrollTop = 0;
   return data;
 }
 
@@ -521,7 +527,10 @@ function taskHtml(t, opts = {}) {
   const meta = [];
   if (t.due_date) meta.push(`<span class="chip ${late ? 'late' : ''}">📅 ${fmtDate(t.due_date)}${t.due_time ? ' ' + t.due_time.slice(0, 5) : ''}</span>`);
   if (t.recurrence) meta.push(`<span class="chip">↻ ${esc(ruleLabel(t.recurrence))}</span>`);
-  if (t.estimate_pomodoros) meta.push(`<span class="chip">🍅 ${t.estimate_pomodoros}</span>`);
+  if (t.estimate_pomodoros) {
+    const n = t.estimate_pomodoros;
+    meta.push(`<span class="chip pomo" title="${n} Pomodoro${n === 1 ? '' : 's'} geschätzt">${'🍅'.repeat(Math.min(n, 5))}${n > 5 ? ` <span class="pomo-n">${n}</span>` : ''}</span>`);
+  }
   if (subs.length) meta.push(`<span class="chip">☑ ${subs.filter((s) => s.done).length}/${subs.length}</span>`);
   if (t.notes) meta.push('<span class="chip">✎</span>');
   if (proj && state.view.type !== 'project') meta.push(`<span class="chip"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:${esc(proj.color || COLORS[0])}"></span>${esc(proj.name)}</span>`);
@@ -608,8 +617,7 @@ function renderDetail() {
       return ps.length ? `<optgroup label="${area === 'beruf' ? 'Beruf' : 'Privat'}">${ps.map((p) => `<option value="${p.id}" ${p.id === t.project_id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</optgroup>` : '';
     })).join('');
   const recRule = parseRule(t.recurrence);
-  if (!recRule.freq) recRule.freq = 'WEEKLY';
-  const recSel = !t.recurrence ? '' : ((state.customRecFor === t.id || !RECUR.some(([v]) => v === t.recurrence)) ? 'custom' : t.recurrence);
+  if (!recRule.freq || recRule.weekdays) { recRule.freq = recRule.weekdays ? 'WEEKLY' : 'DAILY'; }
 
   d.innerHTML = `
     <div class="d-top">
@@ -631,11 +639,20 @@ function renderDetail() {
 
     <div class="grid2">
       <div><label for="dPomo">Geschätzt (Pomodoros)</label><input type="number" min="0" max="50" id="dPomo" value="${t.estimate_pomodoros ?? ''}" placeholder="0"></div>
-      <div><label for="dRec">Wiederholen</label><select id="dRec">${RECUR.map(([v, l]) => `<option value="${v}" ${recSel === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-    </div>
-    <div id="dRecCustom" class="grid2 ${recSel === 'custom' ? '' : 'hidden'}" style="margin-top:8px">
-      <div><label for="dRecN">Alle</label><input type="number" min="1" max="99" id="dRecN" value="${recRule.interval}"></div>
-      <div><label for="dRecU">Einheit</label><select id="dRecU">${Object.entries(UNIT).map(([k, [, pl]]) => `<option value="${k}" ${recRule.freq === k ? 'selected' : ''}>${pl}</option>`).join('')}</select></div>
+      <div class="rec-wrap"><label for="dRecBtn">Wiederholen</label>
+        <button id="dRecBtn" class="rec-btn ${t.recurrence ? 'on' : ''}">↻ ${esc(ruleLabel(t.recurrence))}</button>
+        <div id="dRecPop" class="rec-pop hidden">
+          <div class="rec-row">
+            <span>alle</span>
+            <input type="number" min="1" max="99" id="dRecN" value="${recRule.interval}" inputmode="numeric">
+            <select id="dRecU">${Object.entries(UNIT).map(([k, [, pl]]) => `<option value="${k}" ${recRule.freq === k ? 'selected' : ''}>${pl}</option>`).join('')}</select>
+          </div>
+          <div class="rec-actions">
+            <button id="dRecDel">Entfernen</button>
+            <button id="dRecOk" class="ok">Übernehmen</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <label for="dTags">Tags (mit Komma trennen)</label>
@@ -667,16 +684,24 @@ function renderDetail() {
   $('dDate').onchange = (e) => updateTask(t.id, { due_date: e.target.value || null });
   $('dTime').onchange = (e) => updateTask(t.id, { due_time: e.target.value || null });
   $('dPomo').onchange = (e) => updateTask(t.id, { estimate_pomodoros: e.target.value === '' ? null : Math.max(0, parseInt(e.target.value, 10) || 0) });
-  const saveCustomRec = () => {
+  // Wiederholen: kleines Fenster "alle [N] [Einheit]"
+  const recPop = $('dRecPop');
+  const closeRec = () => { recPop.classList.add('hidden'); document.removeEventListener('mousedown', outsideRec, true); };
+  const outsideRec = (e) => { if (!e.target.closest('.rec-wrap')) closeRec(); };
+  $('dRecBtn').onclick = () => {
+    if (!recPop.classList.contains('hidden')) return closeRec();
+    recPop.classList.remove('hidden');
+    document.addEventListener('mousedown', outsideRec, true);
+    $('dRecN').focus(); $('dRecN').select();
+  };
+  const applyRec = () => {
     const n = Math.max(1, Math.min(99, parseInt($('dRecN').value, 10) || 1));
+    closeRec();
     updateTask(t.id, { recurrence: buildRule($('dRecU').value, n) });
   };
-  $('dRec').onchange = (e) => {
-    if (e.target.value === 'custom') { state.customRecFor = t.id; saveCustomRec(); }
-    else { state.customRecFor = null; updateTask(t.id, { recurrence: e.target.value || null }); }
-  };
-  $('dRecN').onchange = saveCustomRec;
-  $('dRecU').onchange = saveCustomRec;
+  $('dRecOk').onclick = applyRec;
+  $('dRecN').onkeydown = (e) => { if (e.key === 'Enter') applyRec(); if (e.key === 'Escape') { e.stopPropagation(); closeRec(); } };
+  $('dRecDel').onclick = () => { closeRec(); updateTask(t.id, { recurrence: null }); };
   $('dTags').onchange = (e) => updateTask(t.id, { tags: e.target.value.split(',').map((x) => x.trim().replace(/^#/, '')).filter(Boolean) });
   $('dNotes').oninput = (e) => { clearTimeout(saveTimer); saveTimer = setTimeout(() => save({ notes: e.target.value }), 600); };
   $('dDelete').onclick = () => deleteTask(t.id);

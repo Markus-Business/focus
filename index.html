@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Fokus">
+<meta name="theme-color" content="#ffffff">
+<title>Fokus – Aufgaben</title>
+<style>
+  :root {
+    --bg: #f6f6f4; --panel: #ffffff; --line: #e4e3df; --text: #1f1f1d; --muted: #75746f;
+    --accent: #2f6fdf; --accent-soft: #e8f0fd; --danger: #c93a3a;
+    --p1: #4a90d9; --p2: #e2a23b; --p3: #d9534f; --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); font-size: 16px; -webkit-tap-highlight-color: transparent; }
+  button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 8px; padding: 8px 12px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.ghost { border-color: transparent; background: transparent; }
+  button.danger { color: var(--danger); }
+  input, select, textarea { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; width: 100%; }
+  textarea { resize: vertical; min-height: 90px; }
+  label { font-size: 13px; color: var(--muted); display: block; margin: 14px 0 5px; }
+  .hidden { display: none !important; }
+
+  /* Login */
+  #auth { max-width: 360px; margin: 12vh auto; padding: 28px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+  #auth h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; }
+  #auth p { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+  #auth .row { display: flex; gap: 8px; margin-top: 18px; }
+  #auth .row button { flex: 1; }
+  .msg { font-size: 14px; margin-top: 12px; }
+  .msg.err { color: var(--danger); }
+
+  /* Layout */
+  #app { display: flex; height: 100vh; height: 100dvh; }
+  #sidebar { width: 260px; background: var(--panel); border-right: 1px solid var(--line); padding: 16px 10px; overflow-y: auto; flex-shrink: 0; }
+  #main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #detail { width: 380px; background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; flex-shrink: 0; padding: 16px 18px 40px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; cursor: pointer; user-select: none; }
+  .nav-item:hover { background: var(--bg); }
+  .nav-item.active { background: var(--accent-soft); color: var(--accent); }
+  .nav-item .count { margin-left: auto; font-size: 13px; color: var(--muted); }
+  .nav-item .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .nav-item .edit { margin-left: 4px; opacity: 0; font-size: 13px; padding: 2px 6px; }
+  .nav-item:hover .edit { opacity: 1; }
+  .nav-head { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 18px 10px 6px; display: flex; justify-content: space-between; align-items: center; }
+  .nav-head button { padding: 0 6px; font-size: 18px; line-height: 1; }
+  .sidebar-foot { margin-top: 24px; padding: 0 10px; font-size: 13px; color: var(--muted); }
+  .sidebar-foot button { margin-top: 8px; width: 100%; }
+
+  header.top { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header.top h2 { margin: 0; font-size: 20px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #menuBtn { display: none; }
+  .add-row { display: flex; gap: 8px; padding: 14px 18px 4px; }
+  .add-row input { flex: 1; }
+  #list { flex: 1; overflow-y: auto; padding: 8px 18px 80px; }
+  .group-title { font-size: 13px; color: var(--muted); margin: 18px 4px 6px; font-weight: 600; }
+  .task { display: flex; align-items: flex-start; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 6px; cursor: pointer; }
+  .task.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .task.done .title { text-decoration: line-through; color: var(--muted); }
+  .check { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #b9b8b2; flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center; background: transparent; padding: 0; }
+  .check.p1 { border-color: var(--p1); } .check.p2 { border-color: var(--p2); } .check.p3 { border-color: var(--p3); }
+  .check.on { background: #9a9993; border-color: #9a9993; }
+  .check.on::after { content: "✓"; color: #fff; font-size: 13px; }
+  .task .body { flex: 1; min-width: 0; }
+  .task .title { word-wrap: break-word; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  .meta .late { color: var(--danger); }
+  .chip { display: inline-flex; align-items: center; gap: 4px; }
+  .tag { background: var(--bg); border-radius: 6px; padding: 1px 6px; }
+  .drag { color: #c3c2bc; cursor: grab; padding: 0 2px; font-size: 18px; line-height: 22px; touch-action: none; }
+  .sortable-ghost { opacity: .4; }
+  .empty { text-align: center; color: var(--muted); margin-top: 40px; font-size: 15px; }
+  .done-toggle { margin: 16px 4px; font-size: 14px; color: var(--muted); background: none; border: none; padding: 4px 0; }
+
+  /* Detail */
+  #detail .d-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  #detail .d-title { font-size: 18px; font-weight: 600; border: 1px solid transparent; padding: 6px 8px; margin-left: -8px; }
+  #detail .d-title:focus { border-color: var(--line); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  .prio-row { display: flex; gap: 6px; }
+  .prio-row button { flex: 1; padding: 7px 0; font-size: 14px; }
+  .prio-row button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .sub { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .sub .title { flex: 1; min-width: 0; word-wrap: break-word; }
+  .sub.done .title { text-decoration: line-through; color: var(--muted); }
+  .sub .check { width: 18px; height: 18px; }
+  .sub .del { padding: 2px 8px; color: var(--muted); }
+  .sub-add { display: flex; gap: 6px; margin-top: 8px; }
+  .d-foot { margin-top: 28px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--muted); }
+
+  /* Modal */
+  #modal { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+  #modal .box { background: var(--panel); border-radius: 14px; padding: 20px; width: 100%; max-width: 380px; }
+  #modal h3 { margin: 0 0 4px; font-size: 18px; }
+  #modal .colors { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  #modal .colors span { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; }
+  #modal .colors span.on { border-color: var(--text); }
+  #modal .actions { display: flex; gap: 8px; margin-top: 20px; }
+  #modal .actions .spacer { flex: 1; }
+
+  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #2b2b29; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 60; }
+
+  /* Handy */
+  @media (max-width: 860px) {
+    #menuBtn { display: inline-block; }
+    #sidebar { position: fixed; z-index: 30; top: 0; bottom: 0; left: 0; width: 82%; max-width: 300px; transform: translateX(-100%); transition: transform .2s; padding-top: max(16px, env(safe-area-inset-top)); }
+    #sidebar.open { transform: none; box-shadow: 0 0 40px rgba(0,0,0,.2); }
+    #backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.25); z-index: 25; }
+    #detail { position: fixed; z-index: 40; inset: 0; width: auto; border: none; padding-top: max(16px, env(safe-area-inset-top)); }
+    header.top { padding-top: max(14px, env(safe-area-inset-top)); }
+    .task .edit { opacity: 1; }
+    .nav-item .edit { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ Login ============ -->
+<div id="auth" class="hidden">
+  <h1>Fokus</h1>
+  <p>Melde dich an, um deine Aufgaben zu sehen.</p>
+  <label for="authEmail">E-Mail</label>
+  <input id="authEmail" type="email" autocomplete="email" placeholder="name@beispiel.de">
+  <label for="authPass">Passwort</label>
+  <input id="authPass" type="password" autocomplete="current-password" placeholder="mindestens 6 Zeichen">
+  <div class="row">
+    <button class="primary" id="loginBtn">Anmelden</button>
+    <button id="signupBtn">Konto anlegen</button>
+  </div>
+  <div id="authMsg" class="msg"></div>
+</div>
+
+<!-- ============ App ============ -->
+<div id="app" class="hidden">
+  <aside id="sidebar"></aside>
+  <div id="backdrop" class="hidden"></div>
+  <main id="main">
+    <header class="top">
+      <button id="menuBtn" class="ghost" aria-label="Menü">☰</button>
+      <h2 id="viewTitle">Heute</h2>
+      <button id="refreshBtn" class="ghost" title="Neu laden" aria-label="Neu laden">⟳</button>
+    </header>
+    <div class="add-row">
+      <input id="newTask" placeholder="Neue Aufgabe … (Enter)" autocomplete="off">
+      <button class="primary" id="addBtn">+</button>
+    </div>
+    <div id="list"></div>
+  </main>
+  <aside id="detail" class="hidden"></aside>
+</div>
+
+<div id="modal" class="hidden"></div>
+<div id="toast" class="hidden"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script>
+// ================== Einstellungen ==================
+const SUPABASE_URL = 'https://krudjjbnntrgrxjrwboo.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_a0VDBiCCZDVBxmIDNglU1Q_5QREHDRB';
+
+const COLORS = ['#2f6fdf', '#1d9e75', '#e2a23b', '#d9534f', '#8e5bd8', '#d4537e', '#5f5e5a', '#3aa3c9'];
+const PRIO_LABEL = ['Keine', 'Niedrig', 'Mittel', 'Hoch'];
+const RECUR = [
+  ['', 'Keine'],
+  ['FREQ=DAILY', 'Täglich'],
+  ['FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR', 'Werktags (Mo–Fr)'],
+  ['FREQ=WEEKLY', 'Wöchentlich'],
+  ['FREQ=MONTHLY', 'Monatlich'],
+  ['FREQ=YEARLY', 'Jährlich'],
+];
+
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const state = {
+  user: null,
+  projects: [],
+  tasks: [],
+  view: { type: 'today', id: null },
+  showDone: false,
+  selectedId: null,
+};
+
+// ================== Hilfsfunktionen ==================
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function pad(n) { return String(n).padStart(2, '0'); }
+function toDateStr(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function parseDate(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+function todayStr() { return toDateStr(new Date()); }
+function addDays(s, n) { const d = parseDate(s); d.setDate(d.getDate() + n); return toDateStr(d); }
+
+function nextDate(base, rule) {
+  const d = parseDate(base);
+  if (rule === 'FREQ=DAILY') d.setDate(d.getDate() + 1);
+  else if (rule === 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR') {
+    do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6);
+  }
+  else if (rule === 'FREQ=WEEKLY') d.setDate(d.getDate() + 7);
+  else if (rule === 'FREQ=MONTHLY') {
+    const day = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + 1);
+    const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(day, last));
+  }
+  else if (rule === 'FREQ=YEARLY') d.setFullYear(d.getFullYear() + 1);
+  return toDateStr(d);
+}
+
+function fmtDate(s) {
+  if (!s) return '';
+  const t = todayStr();
+  if (s === t) return 'Heute';
+  if (s === addDays(t, 1)) return 'Morgen';
+  if (s === addDays(t, -1)) return 'Gestern';
+  const d = parseDate(s);
+  const wd = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][d.getDay()];
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return `${wd}, ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${sameYear ? '' : d.getFullYear()}`;
+}
+
+function toast(text, ms = 2600) {
+  const el = $('toast'); el.textContent = text; el.classList.remove('hidden');
+  clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.add('hidden'), ms);
+}
+
+function showError(err) {
+  console.error(err);
+  toast('Fehler: ' + (err?.message || err), 5000);
+}
+
+const projectById = (id) => state.projects.find((p) => p.id === id);
+const taskById = (id) => state.tasks.find((t) => t.id === id);
+const subtasksOf = (id) => state.tasks.filter((t) => t.parent_id === id).sort((a, b) => a.sort_order - b.sort_order);
+
+// ================== Login ==================
+async function login() {
+  const email = $('authEmail').value.trim(), password = $('authPass').value;
+  setAuthMsg('');
+  const { error } = await db.auth.signInWithPassword({ email, password });
+  if (error) setAuthMsg(translateAuthError(error.message), true);
+}
+
+async function signup() {
+  const email = $('authEmail').value.trim(), password = $('authPass').value;
+  setAuthMsg('');
+  if (password.length < 6) return setAuthMsg('Das Passwort braucht mindestens 6 Zeichen.', true);
+  const { data, error } = await db.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } });
+  if (error) return setAuthMsg(translateAuthError(error.message), true);
+  if (!data.session) setAuthMsg('Konto angelegt. Bitte bestätige den Link in der E-Mail und melde dich dann an.');
+}
+
+function translateAuthError(m) {
+  if (/Invalid login credentials/i.test(m)) return 'E-Mail oder Passwort stimmt nicht.';
+  if (/Email not confirmed/i.test(m)) return 'Die E-Mail-Adresse ist noch nicht bestätigt. Bitte den Link in der E-Mail anklicken.';
+  if (/already registered/i.test(m)) return 'Für diese E-Mail gibt es schon ein Konto.';
+  return m;
+}
+
+function setAuthMsg(text, isErr) { const el = $('authMsg'); el.textContent = text; el.className = 'msg' + (isErr ? ' err' : ''); }
+
+async function logout() { await db.auth.signOut(); }
+
+// ================== Daten laden ==================
+async function loadData() {
+  const [p, t] = await Promise.all([
+    db.from('projects').select('*').order('sort_order'),
+    db.from('tasks').select('*').order('sort_order'),
+  ]);
+  if (p.error) return showError(p.error);
+  if (t.error) return showError(t.error);
+  state.projects = p.data;
+  state.tasks = t.data;
+  render();
+}
+
+// ================== Aufgaben ändern ==================
+function nextSortOrder(list) { return list.length ? Math.max(...list.map((x) => x.sort_order || 0)) + 1 : 1; }
+
+async function addTask(title, extra = {}) {
+  title = title.trim();
+  if (!title) return;
+  const row = { title, sort_order: nextSortOrder(state.tasks), ...extra };
+  if (!('parent_id' in extra)) {
+    if (state.view.type === 'project') row.project_id = state.view.id;
+    if (state.view.type === 'today' || state.view.type === 'upcoming') row.due_date = todayStr();
+  }
+  const { data, error } = await db.from('tasks').insert(row).select().single();
+  if (error) return showError(error);
+  state.tasks.push(data);
+  render();
+  return data;
+}
+
+async function updateTask(id, patch) {
+  const t = taskById(id);
+  if (!t) return;
+  Object.assign(t, patch);
+  render();
+  const { error } = await db.from('tasks').update(patch).eq('id', id);
+  if (error) showError(error);
+}
+
+async function toggleDone(id) {
+  const t = taskById(id);
+  if (!t) return;
+  const done = !t.done;
+  // Wiederkehrend: erledigte Aufgabe bleibt als erledigt stehen, nächste wird angelegt
+  if (done && t.recurrence && !t.parent_id) {
+    const base = t.due_date || todayStr();
+    const copy = {
+      title: t.title, notes: t.notes, priority: t.priority, project_id: t.project_id,
+      due_date: nextDate(base, t.recurrence), due_time: t.due_time,
+      estimate_pomodoros: t.estimate_pomodoros, estimate_minutes: t.estimate_minutes,
+      recurrence: t.recurrence, tags: t.tags, sort_order: t.sort_order,
+    };
+    const { data, error } = await db.from('tasks').insert(copy).select().single();
+    if (error) return showError(error);
+    state.tasks.push(data);
+    // Unteraufgaben mitnehmen (unerledigt)
+    const subs = subtasksOf(t.id).map((s) => ({ title: s.title, parent_id: data.id, sort_order: s.sort_order, project_id: t.project_id }));
+    if (subs.length) {
+      const r = await db.from('tasks').insert(subs).select();
+      if (r.error) showError(r.error); else state.tasks.push(...r.data);
+    }
+    toast('Nächste Wiederholung: ' + fmtDate(data.due_date));
+  }
+  await updateTask(id, { done, done_at: done ? new Date().toISOString() : null });
+}
+
+async function deleteTask(id) {
+  const t = taskById(id);
+  if (!t || !confirm(`„${t.title}“ löschen?`)) return;
+  const { error } = await db.from('tasks').delete().eq('id', id);
+  if (error) return showError(error);
+  state.tasks = state.tasks.filter((x) => x.id !== id && x.parent_id !== id);
+  if (state.selectedId === id) state.selectedId = null;
+  render();
+}
+
+// ================== Projekte ==================
+function openProjectModal(project) {
+  const isNew = !project;
+  const p = project || { name: '', area: state.view.type === 'project' ? (projectById(state.view.id)?.area || 'beruf') : 'beruf', color: COLORS[0] };
+  let color = p.color || COLORS[0];
+  const m = $('modal');
+  m.innerHTML = `
+    <div class="box">
+      <h3>${isNew ? 'Neue Liste' : 'Liste bearbeiten'}</h3>
+      <label for="pName">Name</label>
+      <input id="pName" value="${esc(p.name)}" placeholder="z. B. Kunde Müller">
+      <label for="pArea">Bereich</label>
+      <select id="pArea">
+        <option value="beruf" ${p.area === 'beruf' ? 'selected' : ''}>Beruf</option>
+        <option value="privat" ${p.area === 'privat' ? 'selected' : ''}>Privat</option>
+      </select>
+      <label>Farbe</label>
+      <div class="colors">${COLORS.map((c) => `<span data-c="${c}" style="background:${c}" class="${c === color ? 'on' : ''}"></span>`).join('')}</div>
+      <div class="actions">
+        ${isNew ? '' : '<button class="danger" id="pDel">Löschen</button>'}
+        <span class="spacer"></span>
+        <button id="pCancel">Abbrechen</button>
+        <button class="primary" id="pSave">Speichern</button>
+      </div>
+    </div>`;
+  m.classList.remove('hidden');
+  $('pName').focus();
+  m.querySelectorAll('.colors span').forEach((s) => s.onclick = () => {
+    color = s.dataset.c;
+    m.querySelectorAll('.colors span').forEach((x) => x.classList.toggle('on', x === s));
+  });
+  const close = () => m.classList.add('hidden');
+  $('pCancel').onclick = close;
+  m.onclick = (e) => { if (e.target === m) close(); };
+  $('pName').onkeydown = (e) => { if (e.key === 'Enter') $('pSave').click(); };
+  $('pSave').onclick = async () => {
+    const name = $('pName').value.trim();
+    if (!name) return $('pName').focus();
+    const row = { name, area: $('pArea').value, color };
+    if (isNew) {
+      row.sort_order = nextSortOrder(state.projects);
+      const { data, error } = await db.from('projects').insert(row).select().single();
+      if (error) return showError(error);
+      state.projects.push(data);
+      state.view = { type: 'project', id: data.id };
+    } else {
+      const { error } = await db.from('projects').update(row).eq('id', p.id);
+      if (error) return showError(error);
+      Object.assign(p, row);
+    }
+    close(); render();
+  };
+  if (!isNew) $('pDel').onclick = async () => {
+    const n = state.tasks.filter((t) => t.project_id === p.id).length;
+    if (!confirm(`Liste „${p.name}“ löschen?${n ? ` Dabei werden auch ${n} Aufgaben gelöscht.` : ''}`)) return;
+    const { error } = await db.from('projects').delete().eq('id', p.id);
+    if (error) return showError(error);
+    state.projects = state.projects.filter((x) => x.id !== p.id);
+    state.tasks = state.tasks.filter((t) => t.project_id !== p.id);
+    state.view = { type: 'today', id: null };
+    close(); render();
+  };
+}
+
+// ================== Ansichten ==================
+function topLevel() { return state.tasks.filter((t) => !t.parent_id); }
+
+function tasksForView() {
+  const t = todayStr();
+  const v = state.view;
+  let list = topLevel();
+  if (v.type === 'today') list = list.filter((x) => x.due_date && x.due_date <= t && (!x.done || (x.done_at && x.done_at.slice(0, 10) === t)));
+  else if (v.type === 'upcoming') { const end = addDays(t, 7); list = list.filter((x) => x.due_date && x.due_date >= t && x.due_date <= end); }
+  else if (v.type === 'nodate') list = list.filter((x) => !x.due_date);
+  else if (v.type === 'project') list = list.filter((x) => x.project_id === v.id);
+  return list.sort((a, b) => a.sort_order - b.sort_order);
+}
+
+function viewTitle() {
+  const v = state.view;
+  if (v.type === 'today') return 'Heute';
+  if (v.type === 'upcoming') return 'Nächste 7 Tage';
+  if (v.type === 'nodate') return 'Ohne Datum';
+  if (v.type === 'all') return 'Alle Aufgaben';
+  return projectById(v.id)?.name || 'Liste';
+}
+
+// ================== Rendern ==================
+function render() {
+  renderSidebar();
+  renderList();
+  renderDetail();
+}
+
+function renderSidebar() {
+  const t = todayStr();
+  const open = topLevel().filter((x) => !x.done);
+  const counts = {
+    today: open.filter((x) => x.due_date && x.due_date <= t).length,
+    upcoming: open.filter((x) => x.due_date && x.due_date >= t && x.due_date <= addDays(t, 7)).length,
+    nodate: open.filter((x) => !x.due_date).length,
+    all: open.length,
+  };
+  const item = (type, label, icon, id = null, extra = '') => {
+    const active = state.view.type === type && state.view.id === id;
+    return `<div class="nav-item ${active ? 'active' : ''}" data-type="${type}" data-id="${id ?? ''}">${icon}<span>${esc(label)}</span>${extra}</div>`;
+  };
+  const projBlock = (area, title) => {
+    const ps = state.projects.filter((p) => (p.area || 'beruf') === area && !p.archived);
+    return `<div class="nav-head"><span>${title}</span><button class="ghost add-proj" data-area="${area}" aria-label="Liste hinzufügen">+</button></div>` +
+      (ps.length ? ps.map((p) => {
+        const c = open.filter((x) => x.project_id === p.id).length;
+        return item('project', p.name, `<span class="dot" style="background:${esc(p.color || COLORS[0])}"></span>`, p.id,
+          `<span class="count">${c || ''}</span><button class="ghost edit" data-edit="${p.id}" aria-label="Liste bearbeiten">✎</button>`);
+      }).join('') : `<div style="padding:4px 10px;font-size:13px;color:var(--muted)">Noch keine Liste</div>`);
+  };
+  $('sidebar').innerHTML =
+    item('today', 'Heute', '☀', null, `<span class="count">${counts.today || ''}</span>`) +
+    item('upcoming', 'Nächste 7 Tage', '📅', null, `<span class="count">${counts.upcoming || ''}</span>`) +
+    item('nodate', 'Ohne Datum', '◌', null, `<span class="count">${counts.nodate || ''}</span>`) +
+    item('all', 'Alle Aufgaben', '☰', null, `<span class="count">${counts.all || ''}</span>`) +
+    projBlock('beruf', 'Beruf') +
+    projBlock('privat', 'Privat') +
+    `<div class="sidebar-foot">${esc(state.user?.email || '')}<button id="logoutBtn">Abmelden</button></div>`;
+
+  $('sidebar').querySelectorAll('.nav-item').forEach((el) => el.onclick = (e) => {
+    if (e.target.closest('.edit')) return;
+    state.view = { type: el.dataset.type, id: el.dataset.id || null };
+    state.selectedId = null;
+    closeSidebar();
+    render();
+  });
+  $('sidebar').querySelectorAll('.edit').forEach((b) => b.onclick = (e) => { e.stopPropagation(); openProjectModal(projectById(b.dataset.edit)); });
+  $('sidebar').querySelectorAll('.add-proj').forEach((b) => b.onclick = () => {
+    openProjectModal(null);
+    $('pArea').value = b.dataset.area;
+  });
+  $('logoutBtn').onclick = logout;
+}
+
+function taskHtml(t, opts = {}) {
+  const proj = projectById(t.project_id);
+  const subs = subtasksOf(t.id);
+  const late = t.due_date && t.due_date < todayStr() && !t.done;
+  const meta = [];
+  if (t.due_date) meta.push(`<span class="chip ${late ? 'late' : ''}">📅 ${fmtDate(t.due_date)}${t.due_time ? ' ' + t.due_time.slice(0, 5) : ''}</span>`);
+  if (t.recurrence) meta.push('<span class="chip">↻</span>');
+  if (t.estimate_pomodoros) meta.push(`<span class="chip">🍅 ${t.estimate_pomodoros}</span>`);
+  if (subs.length) meta.push(`<span class="chip">☑ ${subs.filter((s) => s.done).length}/${subs.length}</span>`);
+  if (t.notes) meta.push('<span class="chip">✎</span>');
+  if (proj && state.view.type !== 'project') meta.push(`<span class="chip"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:${esc(proj.color || COLORS[0])}"></span>${esc(proj.name)}</span>`);
+  (t.tags || []).forEach((g) => meta.push(`<span class="tag">#${esc(g)}</span>`));
+  return `<div class="task ${t.done ? 'done' : ''} ${state.selectedId === t.id ? 'selected' : ''}" data-id="${t.id}">
+    ${opts.sortable ? '<span class="drag" aria-hidden="true">⋮⋮</span>' : ''}
+    <button class="check p${t.priority || 0} ${t.done ? 'on' : ''}" data-check="${t.id}" aria-label="Erledigt"></button>
+    <div class="body"><div class="title">${esc(t.title)}</div>${meta.length ? `<div class="meta">${meta.join('')}</div>` : ''}</div>
+  </div>`;
+}
+
+let sortables = [];
+function renderList() {
+  $('viewTitle').textContent = viewTitle();
+  sortables.forEach((s) => s.destroy()); sortables = [];
+  const all = tasksForView();
+  const open = all.filter((t) => !t.done);
+  const done = all.filter((t) => t.done);
+  const el = $('list');
+  let html = '';
+
+  if (state.view.type === 'upcoming') {
+    const t = todayStr();
+    for (let i = 0; i <= 7; i++) {
+      const d = addDays(t, i);
+      const items = open.filter((x) => x.due_date === d);
+      if (items.length) html += `<div class="group-title">${fmtDate(d)} · ${parseDate(d).toLocaleDateString('de-DE', { day: '2-digit', month: 'long' })}</div>` + items.map((x) => taskHtml(x)).join('');
+    }
+  } else if (state.view.type === 'today') {
+    const late = open.filter((x) => x.due_date < todayStr());
+    const today = open.filter((x) => x.due_date === todayStr());
+    if (late.length) html += `<div class="group-title">Überfällig</div><div class="sort-zone">${late.map((x) => taskHtml(x, { sortable: true })).join('')}</div>`;
+    if (today.length) html += `${late.length ? '<div class="group-title">Heute</div>' : ''}<div class="sort-zone">${today.map((x) => taskHtml(x, { sortable: true })).join('')}</div>`;
+  } else {
+    html += `<div class="sort-zone">${open.map((x) => taskHtml(x, { sortable: true })).join('')}</div>`;
+  }
+
+  if (!open.length) html += `<div class="empty">${state.view.type === 'today' ? 'Für heute ist nichts geplant.' : 'Keine offenen Aufgaben.'}</div>`;
+
+  if (done.length) {
+    html += `<button class="done-toggle" id="doneToggle">${state.showDone ? '▾' : '▸'} Erledigt (${done.length})</button>`;
+    if (state.showDone) html += done.sort((a, b) => (b.done_at || '').localeCompare(a.done_at || '')).map((x) => taskHtml(x)).join('');
+  }
+  el.innerHTML = html;
+
+  el.querySelectorAll('.task').forEach((row) => row.onclick = (e) => {
+    if (e.target.closest('.check') || e.target.closest('.drag')) return;
+    state.selectedId = row.dataset.id;
+    render();
+  });
+  el.querySelectorAll('[data-check]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); toggleDone(b.dataset.check); });
+  if ($('doneToggle')) $('doneToggle').onclick = () => { state.showDone = !state.showDone; renderList(); };
+
+  el.querySelectorAll('.sort-zone').forEach((zone) => {
+    sortables.push(Sortable.create(zone, {
+      handle: '.drag', animation: 150, ghostClass: 'sortable-ghost',
+      onEnd: (evt) => {
+        if (evt.oldIndex === evt.newIndex) return;
+        const ids = [...zone.querySelectorAll('.task')].map((n) => n.dataset.id);
+        const i = ids.indexOf(evt.item.dataset.id);
+        const prev = ids[i - 1] ? taskById(ids[i - 1]).sort_order : null;
+        const next = ids[i + 1] ? taskById(ids[i + 1]).sort_order : null;
+        let so;
+        if (prev == null && next == null) so = 1;
+        else if (prev == null) so = next - 1;
+        else if (next == null) so = prev + 1;
+        else so = (prev + next) / 2;
+        updateTask(evt.item.dataset.id, { sort_order: so });
+      },
+    }));
+  });
+}
+
+let saveTimer;
+function renderDetail() {
+  const d = $('detail');
+  const t = taskById(state.selectedId);
+  if (!t) { d.classList.add('hidden'); return; }
+  d.classList.remove('hidden');
+  const subs = subtasksOf(t.id);
+  const projOptions = ['<option value="">— keine Liste —</option>']
+    .concat(['beruf', 'privat'].map((area) => {
+      const ps = state.projects.filter((p) => (p.area || 'beruf') === area);
+      return ps.length ? `<optgroup label="${area === 'beruf' ? 'Beruf' : 'Privat'}">${ps.map((p) => `<option value="${p.id}" ${p.id === t.project_id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</optgroup>` : '';
+    })).join('');
+
+  d.innerHTML = `
+    <div class="d-top">
+      <button class="ghost" id="dClose">← Zurück</button>
+      <button class="check p${t.priority || 0} ${t.done ? 'on' : ''}" id="dCheck" aria-label="Erledigt"></button>
+    </div>
+    <input class="d-title" id="dTitle" value="${esc(t.title)}">
+
+    <label for="dProject">Liste</label>
+    <select id="dProject">${projOptions}</select>
+
+    <label>Priorität</label>
+    <div class="prio-row">${PRIO_LABEL.map((l, i) => `<button data-prio="${i}" class="${(t.priority || 0) === i ? 'on' : ''}">${l}</button>`).join('')}</div>
+
+    <div class="grid2">
+      <div><label for="dDate">Fällig am</label><input type="date" id="dDate" value="${t.due_date || ''}"></div>
+      <div><label for="dTime">Uhrzeit</label><input type="time" id="dTime" value="${t.due_time ? t.due_time.slice(0, 5) : ''}"></div>
+    </div>
+
+    <div class="grid2">
+      <div><label for="dPomo">Geschätzt (Pomodoros)</label><input type="number" min="0" max="50" id="dPomo" value="${t.estimate_pomodoros ?? ''}" placeholder="0"></div>
+      <div><label for="dRec">Wiederholen</label><select id="dRec">${RECUR.map(([v, l]) => `<option value="${v}" ${(t.recurrence || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    </div>
+
+    <label for="dTags">Tags (mit Komma trennen)</label>
+    <input id="dTags" value="${esc((t.tags || []).join(', '))}" placeholder="telefonat, vorbereitung">
+
+    <label>Unteraufgaben</label>
+    <div id="dSubs">${subs.map((s) => `
+      <div class="sub ${s.done ? 'done' : ''}">
+        <button class="check ${s.done ? 'on' : ''}" data-subcheck="${s.id}" aria-label="Erledigt"></button>
+        <span class="title">${esc(s.title)}</span>
+        <button class="ghost del" data-subdel="${s.id}" aria-label="Löschen">✕</button>
+      </div>`).join('')}</div>
+    <div class="sub-add"><input id="dSubNew" placeholder="Unteraufgabe hinzufügen"><button id="dSubAdd">+</button></div>
+
+    <label for="dNotes">Notizen</label>
+    <textarea id="dNotes" placeholder="Details, Links, Gedanken …">${esc(t.notes || '')}</textarea>
+
+    <div class="d-foot">
+      <span>Angelegt ${new Date(t.created_at).toLocaleDateString('de-DE')}</span>
+      <button class="danger" id="dDelete">Löschen</button>
+    </div>`;
+
+  const save = (patch) => updateTaskQuiet(t.id, patch);
+  $('dClose').onclick = () => { state.selectedId = null; render(); };
+  $('dCheck').onclick = () => toggleDone(t.id);
+  $('dTitle').onchange = (e) => { const v = e.target.value.trim(); if (v) updateTask(t.id, { title: v }); };
+  $('dProject').onchange = (e) => updateTask(t.id, { project_id: e.target.value || null });
+  d.querySelectorAll('[data-prio]').forEach((b) => b.onclick = () => updateTask(t.id, { priority: Number(b.dataset.prio) }));
+  $('dDate').onchange = (e) => updateTask(t.id, { due_date: e.target.value || null });
+  $('dTime').onchange = (e) => updateTask(t.id, { due_time: e.target.value || null });
+  $('dPomo').onchange = (e) => updateTask(t.id, { estimate_pomodoros: e.target.value === '' ? null : Math.max(0, parseInt(e.target.value, 10) || 0) });
+  $('dRec').onchange = (e) => updateTask(t.id, { recurrence: e.target.value || null });
+  $('dTags').onchange = (e) => updateTask(t.id, { tags: e.target.value.split(',').map((x) => x.trim().replace(/^#/, '')).filter(Boolean) });
+  $('dNotes').oninput = (e) => { clearTimeout(saveTimer); saveTimer = setTimeout(() => save({ notes: e.target.value }), 600); };
+  $('dDelete').onclick = () => deleteTask(t.id);
+
+  const addSub = async () => {
+    const v = $('dSubNew').value.trim();
+    if (!v) return;
+    await addTask(v, { parent_id: t.id, project_id: t.project_id });
+    setTimeout(() => $('dSubNew')?.focus(), 0);
+  };
+  $('dSubAdd').onclick = addSub;
+  $('dSubNew').onkeydown = (e) => { if (e.key === 'Enter') addSub(); };
+  d.querySelectorAll('[data-subcheck]').forEach((b) => b.onclick = () => toggleDone(b.dataset.subcheck));
+  d.querySelectorAll('[data-subdel]').forEach((b) => b.onclick = async () => {
+    const id = b.dataset.subdel;
+    const { error } = await db.from('tasks').delete().eq('id', id);
+    if (error) return showError(error);
+    state.tasks = state.tasks.filter((x) => x.id !== id);
+    render();
+  });
+}
+
+// Speichern ohne Neuaufbau (für Notizen, damit der Cursor bleibt)
+async function updateTaskQuiet(id, patch) {
+  const t = taskById(id);
+  if (!t) return;
+  Object.assign(t, patch);
+  const { error } = await db.from('tasks').update(patch).eq('id', id);
+  if (error) showError(error);
+  renderList();
+}
+
+// ================== Menü (Handy) ==================
+function openSidebar() { $('sidebar').classList.add('open'); $('backdrop').classList.remove('hidden'); }
+function closeSidebar() { $('sidebar').classList.remove('open'); $('backdrop').classList.add('hidden'); }
+
+// ================== Start ==================
+function showApp(user) {
+  state.user = user;
+  $('auth').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  loadData();
+}
+function showAuth() {
+  state.user = null; state.tasks = []; state.projects = [];
+  $('app').classList.add('hidden');
+  $('auth').classList.remove('hidden');
+}
+
+$('loginBtn').onclick = login;
+$('signupBtn').onclick = signup;
+$('authPass').onkeydown = (e) => { if (e.key === 'Enter') login(); };
+$('addBtn').onclick = () => { addTask($('newTask').value); $('newTask').value = ''; };
+$('newTask').onkeydown = (e) => { if (e.key === 'Enter') { addTask($('newTask').value); $('newTask').value = ''; } };
+$('menuBtn').onclick = openSidebar;
+$('backdrop').onclick = closeSidebar;
+$('refreshBtn').onclick = () => loadData().then(() => toast('Aktualisiert'));
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { if (!$('modal').classList.contains('hidden')) $('modal').classList.add('hidden'); else if (state.selectedId) { state.selectedId = null; render(); } }
+});
+// Abgleich mit anderen Geräten: beim Zurückkehren zur App neu laden
+document.addEventListener('visibilitychange', () => { if (!document.hidden && state.user) loadData(); });
+
+db.auth.onAuthStateChange((_event, session) => {
+  // setTimeout: Datenbankabfragen nicht direkt im Auth-Callback starten (vermeidet Blockieren in supabase-js)
+  setTimeout(() => {
+    if (session?.user) { if (!state.user || state.user.id !== session.user.id) showApp(session.user); }
+    else showAuth();
+  }, 0);
+});
+</script>
+</body>
+</html>

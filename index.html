@@ -9,6 +9,9 @@
 <meta name="apple-mobile-web-app-title" content="Fokus">
 <meta name="theme-color" content="#ffffff">
 <title>Fokus – Aufgaben</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
 <style>
   :root {
     --bg: #f6f6f4; --panel: #ffffff; --line: #e4e3df; --text: #1f1f1d; --muted: #75746f;
@@ -58,6 +61,11 @@
   #menuBtn { display: none; }
   .add-row { display: flex; gap: 8px; padding: 14px 18px 4px; }
   .add-row { align-items: flex-start; }
+  .sync-badge { font-size: 12px; border-radius: 999px; padding: 3px 9px; white-space: nowrap; }
+  .sync-badge.off { background: #fdecea; color: var(--danger); }
+  .sync-badge.wait { background: var(--accent-soft); color: var(--accent); }
+  .search-bar { display: flex; gap: 6px; padding: 10px 18px 0; }
+  .search-bar input { flex: 1; }
   .add-row textarea { flex: 1; min-height: 40px; resize: none; line-height: 1.35; overflow-y: auto; }
   #micBtn.rec { background: #d9534f; border-color: #d9534f; color: #fff; animation: pulse 1.2s infinite; }
   @keyframes pulse { 50% { opacity: .6; } }
@@ -206,6 +214,9 @@
   .tl-task > div { flex: 1; min-width: 0; }
   .tl-task.done { opacity: .5; }
   .tl-task .play { width: 20px; height: 20px; font-size: 9px; }
+  .tl-task .check { width: 18px; height: 18px; margin-top: 1px; background: #fff; }
+  .tl-task .check.on { background: #9a9993; }
+  .tl-task.done b { text-decoration: line-through; }
   .tl-task .unplan { padding: 0 4px; font-size: 12px; color: var(--muted); }
   .tl-now { position: absolute; left: -6px; right: 0; border-top: 2px solid var(--danger); }
   .tl-now::before { content: ""; position: absolute; left: 0; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
@@ -283,8 +294,14 @@
     <header class="top">
       <button id="menuBtn" class="ghost" aria-label="Menü">☰</button>
       <h2 id="viewTitle">Heute</h2>
+      <span id="syncBadge" class="sync-badge hidden"></span>
+      <button id="searchBtn" class="ghost" title="Suchen" aria-label="Suchen">🔍</button>
       <button id="refreshBtn" class="ghost" title="Neu laden" aria-label="Neu laden">⟳</button>
     </header>
+    <div id="searchBar" class="search-bar hidden">
+      <input id="searchInput" type="search" placeholder="Suchen in Aufgaben, Notizen, Tags, Listen …" autocomplete="off" enterkeyhint="search">
+      <button id="searchClose" class="ghost" aria-label="Suche schließen">✕</button>
+    </div>
     <div class="add-row">
       <textarea id="newTask" rows="1" placeholder="Neue Aufgabe … (z. B. „morgen 10 Uhr“)" autocomplete="off" enterkeyhint="done"></textarea>
       <button id="micBtn" class="hidden" aria-label="Diktieren" title="Diktieren">🎤</button>
@@ -336,8 +353,8 @@
 <div id="modal" class="hidden"></div>
 <div id="toast" class="hidden"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="vendor/Sortable.min.js"></script>
 <script>
 // ================== Einstellungen ==================
 const SUPABASE_URL = 'https://krudjjbnntrgrxjrwboo.supabase.co';
@@ -570,26 +587,158 @@ function translateAuthError(m) {
 
 function setAuthMsg(text, isErr) { const el = $('authMsg'); el.textContent = text; el.className = 'msg' + (isErr ? ' err' : ''); }
 
-async function logout() { await db.auth.signOut(); }
+async function logout() {
+  if (outbox.length && !confirm(`${outbox.length} Änderung(en) sind noch nicht übertragen und gehen beim Abmelden verloren. Trotzdem abmelden?`)) return;
+  try { localStorage.removeItem(LASTUSER_KEY); if (state.user) { localStorage.removeItem(CACHE_KEY(state.user.id)); localStorage.removeItem(OUTBOX_KEY(state.user.id)); } } catch (e) {}
+  outbox = [];
+  await db.auth.signOut();
+  state.user = null; showAuth();
+}
 
 // ================== Daten laden ==================
+// ================== Offline: lokaler Speicher + Warteschlange ==================
+// Alle Änderungen werden sofort lokal übernommen und in eine Warteschlange gelegt.
+// Die Warteschlange wird übertragen, sobald eine Verbindung besteht – in der richtigen Reihenfolge.
+const CACHE_KEY = (uid) => `fokus.cache.${uid}`;
+const OUTBOX_KEY = (uid) => `fokus.outbox.${uid}`;
+const LASTUSER_KEY = 'fokus.lastUser';
+let outbox = [];
+let flushing = false;
+let offline = !navigator.onLine;
+
+function uuid() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = (crypto.getRandomValues(new Uint8Array(1))[0] & 15); return (c === 'x' ? r : (r & 3) | 8).toString(16); });
+}
+function saveCache() {
+  if (!state.user) return;
+  try {
+    localStorage.setItem(CACHE_KEY(state.user.id), JSON.stringify({
+      projects: state.projects, tasks: state.tasks, sessions: state.sessions.slice(0, 2000),
+      settings: state.settings, calendars: state.calendars, eventsCache: state.eventsCache || {}, savedAt: Date.now(),
+    }));
+  } catch (e) { console.warn('Lokaler Speicher voll', e); }
+}
+// Lokalen Speicher kurz nach jeder Änderung aktualisieren (gebündelt)
+let cacheTimer = null;
+function scheduleCacheSave() { clearTimeout(cacheTimer); cacheTimer = setTimeout(saveCache, 200); }
+function loadCache(uid) {
+  try {
+    const c = JSON.parse(localStorage.getItem(CACHE_KEY(uid)) || 'null');
+    if (!c) return false;
+    state.projects = c.projects || []; state.tasks = c.tasks || []; state.sessions = c.sessions || [];
+    state.settings = { ...DEFAULT_SETTINGS, ...(c.settings || {}) }; state.calendars = c.calendars || [];
+    state.eventsCache = c.eventsCache || {};
+    return true;
+  } catch (e) { return false; }
+}
+function saveOutbox() { if (state.user) try { localStorage.setItem(OUTBOX_KEY(state.user.id), JSON.stringify(outbox)); } catch (e) {} }
+function loadOutbox(uid) { try { outbox = JSON.parse(localStorage.getItem(OUTBOX_KEY(uid)) || '[]'); } catch (e) { outbox = []; } }
+
+// Netzwerkfehler (später erneut versuchen) von echten Datenfehlern unterscheiden
+function isRetryable(err) {
+  if (!err) return false;
+  if (!navigator.onLine) return true;
+  const m = String(err.message || err);
+  if (/jwt|token|401/i.test(m) || err.code === 'PGRST301' || err.code === 'PGRST303') return true;
+  return !err.code && /fetch|network|load failed|timed? ?out|abort|offline/i.test(m);
+}
+
+// Änderung vormerken (und gleich versuchen zu übertragen)
+function queue(op) {
+  const last = outbox[outbox.length - 1];
+  // Mehrere Änderungen derselben Zeile hintereinander zusammenfassen (z. B. beim Tippen von Notizen)
+  if (op.kind === 'update' && last && last.kind === 'update' && last.table === op.table && last.id === op.id && !flushing) {
+    Object.assign(last.patch, op.patch);
+  } else outbox.push(op);
+  saveOutbox(); saveCache(); updateSyncBadge();
+  return flushOutbox();
+}
+async function runOp(op) {
+  const q = db.from(op.table);
+  if (op.kind === 'insert') return q.insert(op.row);
+  if (op.kind === 'upsert') return q.upsert(op.row);
+  if (op.kind === 'update') return q.update(op.patch).eq('id', op.id);
+  if (op.kind === 'delete') return q.delete().eq('id', op.id);
+  return { error: null };
+}
+async function flushOutbox() {
+  if (flushing || !outbox.length || !state.user || !navigator.onLine) return;
+  flushing = true;
+  try {
+    while (outbox.length) {
+      const op = outbox[0];
+      let r;
+      try { r = await runOp(op); } catch (e) { r = { error: e }; }
+      if (r && r.error) {
+        if (isRetryable(r.error)) {
+          setOffline(!navigator.onLine || /fetch|network|load failed/i.test(String(r.error.message || r.error)));
+          if (/jwt|token|401/i.test(String(r.error.message))) { try { await db.auth.refreshSession(); } catch (e) {} }
+          break;
+        }
+        // schon vorhanden (z. B. doppelt gesendet) → in Ordnung; sonst Fehler zeigen und verwerfen
+        if (!(r.error.code === '23505' && (op.kind === 'insert' || op.kind === 'upsert'))) showError(r.error);
+      } else setOffline(false);
+      outbox.shift(); saveOutbox();
+    }
+  } finally { flushing = false; updateSyncBadge(); }
+}
+function setOffline(v) {
+  if (offline === v) return;
+  offline = v; updateSyncBadge();
+}
+function updateSyncBadge() {
+  const el = document.getElementById('syncBadge');
+  if (!el) return;
+  const n = outbox.length;
+  if (offline) { el.textContent = n ? `Offline · ${n} Änderung${n === 1 ? '' : 'en'} warten` : 'Offline'; el.className = 'sync-badge off'; }
+  else if (n) { el.textContent = `${n} Änderung${n === 1 ? '' : 'en'} werden übertragen …`; el.className = 'sync-badge wait'; }
+  else { el.textContent = ''; el.className = 'sync-badge hidden'; }
+}
+
+// Lokale Zeilen mit denselben Standardwerten wie in der Datenbank anlegen
+function newRow(table, row) {
+  const now = new Date().toISOString();
+  const base = {
+    tasks: { owner_id: state.user.id, done: false, priority: 0, tags: [], created_at: now, updated_at: now, parent_id: null, project_id: null },
+    projects: { owner_id: state.user.id, archived: false, created_at: now },
+    pomodoro_sessions: { user_id: state.user.id, kind: 'focus', manual: false },
+    calendars: { owner_id: state.user.id, enabled: true, created_at: now },
+  }[table] || {};
+  return { id: uuid(), ...base, ...row };
+}
+function dbInsert(table, row) { const r = newRow(table, row); queue({ kind: 'insert', table, row: { ...r } }); return r; }
+function dbUpdate(table, id, patch) { return queue({ kind: 'update', table, id, patch: { ...patch } }); }
+function dbDelete(table, id) { return queue({ kind: 'delete', table, id }); }
+
 async function loadData() {
+  if (!navigator.onLine) { setOffline(true); return; }
+  await flushOutbox();
+  if (outbox.length) return;   // noch nicht alles übertragen: lokale Daten behalten
   // Erledigte Aufgaben nur der letzten 60 Tage laden (hält die Datenmenge klein)
   const since = new Date(Date.now() - 60 * 864e5).toISOString();
   const sessSince = new Date(Date.now() - 365 * 864e5).toISOString();
-  const [p, t, s, st, c] = await Promise.all([
-    db.from('projects').select('*').order('sort_order'),
-    db.from('tasks').select('*').or(`done.eq.false,done_at.gte.${since.slice(0, 10)}`).order('sort_order').limit(5000),
-    db.from('pomodoro_sessions').select('*').gte('started_at', sessSince).order('started_at', { ascending: false }).limit(5000),
-    db.from('settings').select('*').maybeSingle(),
-    db.from('calendars').select('*').order('sort_order'),
-  ]);
-  for (const r of [p, t, s, st, c]) if (r.error) return showError(r.error);
+  let rs;
+  try {
+    rs = await Promise.all([
+      db.from('projects').select('*').order('sort_order'),
+      db.from('tasks').select('*').or(`done.eq.false,done_at.gte.${since.slice(0, 10)}`).order('sort_order').limit(5000),
+      db.from('pomodoro_sessions').select('*').gte('started_at', sessSince).order('started_at', { ascending: false }).limit(5000),
+      db.from('settings').select('*').maybeSingle(),
+      db.from('calendars').select('*').order('sort_order'),
+    ]);
+  } catch (e) { setOffline(true); return; }
+  const bad = rs.find((r) => r.error);
+  if (bad) { if (isRetryable(bad.error)) { setOffline(true); return; } return showError(bad.error); }
+  if (outbox.length) return;   // während des Ladens wurde lokal etwas geändert
+  const [p, t, s, st, c] = rs;
+  setOffline(false);
   state.calendars = c.data;
   state.projects = p.data;
   state.tasks = t.data;
   state.sessions = s.data;
   state.settings = { ...DEFAULT_SETTINGS, ...(st.data || {}) };
+  saveCache();
   render();
   renderTimer();
   if (state.view.type === 'plan') loadEvents(true);
@@ -679,9 +828,7 @@ async function finishFocus(endAt, partial = false) {
   await saveSession({ task_id: timer.taskId, kind: 'focus', started_at: new Date(timer.startedAt).toISOString(), ended_at: new Date(endAt).toISOString(), duration_minutes: minutes, manual: false });
 }
 async function saveSession(row) {
-  const { data, error } = await db.from('pomodoro_sessions').insert(row).select().single();
-  if (error) return showError(error);
-  state.sessions.unshift(data);
+  state.sessions.unshift(dbInsert('pomodoro_sessions', row));
   render();
 }
 
@@ -869,9 +1016,8 @@ function openSettings() {
       work_start: ws, work_end: we,
       work_days: [...m.querySelectorAll('[data-wd]')].filter((x) => x.checked).map((x) => +x.dataset.wd),
     };
-    const { data, error } = await db.from('settings').upsert(row).select().single();
-    if (error) return showError(error);
-    state.settings = { ...DEFAULT_SETTINGS, ...data };
+    state.settings = { ...DEFAULT_SETTINGS, ...(state.settings || {}), ...row };
+    queue({ kind: 'upsert', table: 'settings', row });
     close(); render(); renderTimer();
     toast('Einstellungen gespeichert');
   };
@@ -896,10 +1042,10 @@ function renderCalList() {
   el.querySelectorAll('[data-caldel]').forEach((b) => b.onclick = async () => {
     const c = state.calendars.find((x) => x.id === b.dataset.caldel);
     if (!confirm(`Kalender „${c.name}“ aus der App entfernen? (Dein iCloud-Kalender bleibt unverändert.)`)) return;
-    const { error } = await db.from('calendars').delete().eq('id', c.id);
-    if (error) return showError(error);
     state.calendars = state.calendars.filter((x) => x.id !== c.id);
-    renderCalList(); loadEvents(true);
+    renderCalList();
+    await dbDelete('calendars', c.id);
+    loadEvents(true);
   });
 }
 async function addCalendar() {
@@ -907,19 +1053,18 @@ async function addCalendar() {
   if (!name) return $('calName').focus();
   if (!/^(webcals?|https):\/\/\S+$/i.test(url)) { toast('Bitte den Freigabe-Link einfügen (beginnt mit webcal:// oder https://)', 4000); return $('calUrl').focus(); }
   const color = CAL_COLORS[state.calendars.length % CAL_COLORS.length];
-  const { data, error } = await db.from('calendars').insert({ name, url, color, sort_order: state.calendars.length + 1 }).select().single();
-  if (error) return showError(error);
-  state.calendars.push(data);
+  state.calendars.push(dbInsert('calendars', { name, url, color, sort_order: state.calendars.length + 1 }));
   $('calName').value = ''; $('calUrl').value = '';
-  renderCalList(); loadEvents(true);
+  renderCalList();
+  await flushOutbox();     // erst speichern, dann Termine holen
+  loadEvents(true);
   toast(`Kalender „${name}“ verbunden`);
 }
 async function updateCalendar(id, patch) {
   const c = state.calendars.find((x) => x.id === id);
   Object.assign(c, patch);
   renderCalList();
-  const { error } = await db.from('calendars').update(patch).eq('id', id);
-  if (error) return showError(error);
+  await dbUpdate('calendars', id, patch);
   loadEvents(true);
 }
 
@@ -939,7 +1084,15 @@ async function loadEvents(force = false) {
   if (!force && state.events.key === key) return;
   if (eventsInFlight) { eventsAgain = true; return; }
   if (!state.calendars.some((c) => c.enabled)) { state.events = { key, list: [], errors: [], loading: false }; if (state.view.type === 'plan') renderList(); return; }
-  state.events = { ...state.events, key, loading: true };
+  state.eventsCache = state.eventsCache || {};
+  const cached = state.eventsCache[key];
+  if (!navigator.onLine) {
+    const at = cached ? new Date(cached.at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : null;
+    state.events = { key, list: cached ? cached.list : [], errors: [{ name: 'Offline', message: cached ? `Termine vom Stand ${at}` : 'Für diese Woche sind keine Termine gespeichert' }], loading: false };
+    if (state.view.type === 'plan') renderList();
+    return;
+  }
+  state.events = { ...state.events, key, list: state.events.key === key ? state.events.list : (cached ? cached.list : []), loading: true };
   if (state.view.type === 'plan') renderList();
   const from = parseDate(key), to = parseDate(addDays(key, 7));
   eventsInFlight = db.functions.invoke('calendar-events', { body: { from: from.toISOString(), to: to.toISOString() } });
@@ -951,6 +1104,9 @@ async function loadEvents(force = false) {
     state.events = { key, list: [], errors: [{ name: 'Kalender', message: msg }], loading: false };
   } else {
     state.events = { key, list: data.events || [], errors: data.errors || [], loading: false };
+    state.eventsCache[key] = { list: state.events.list, at: Date.now() };
+    for (const k of Object.keys(state.eventsCache).sort().slice(0, -6)) delete state.eventsCache[k];   // höchstens 6 Wochen merken
+    saveCache();
   }
   if (state.view.type === 'plan') renderList();
   // inzwischen andere Woche gewählt oder Kalender geändert → einmal nachladen
@@ -1000,7 +1156,7 @@ function planModel(day) {
   // Aufgaben des Tages, die noch keine Uhrzeit im Plan haben
   const isToday = day === todayStr();
   const todo = top.filter((t) => !t.done && !(t.planned_date === day && t.planned_start) &&
-    (t.planned_date === day || (t.due_date && (isToday ? t.due_date <= day : t.due_date === day))));
+    (isToday ? isTodayTask(t, day) : (t.planned_date === day || t.due_date === day)));
   const todoMin = todo.reduce((a, t) => a + taskDuration(t), 0);
   const unestimated = todo.filter((t) => !taskDuration(t)).length;
   let startMin = isWork ? ws : 8 * 60, endMin = isWork ? we : 18 * 60;
@@ -1136,7 +1292,8 @@ function renderPlan() {
     const t = b.p.task;
     return `<div class="tl-task ${t.done ? 'done' : ''}" style="${style}" data-open="${t.id}" data-drag="${t.id}">
       <span class="grip" aria-hidden="true">⋮⋮</span>
-      <button class="play" data-play="${t.id}" aria-label="Pomodoro starten">▶</button>
+      <button class="check p${t.priority || 0} ${t.done ? 'on' : ''}" data-plancheck="${t.id}" aria-label="Erledigt"></button>
+      ${t.done ? '' : `<button class="play" data-play="${t.id}" aria-label="Pomodoro starten">▶</button>`}
       <div><b>${esc(t.title)}</b><span>${hhmm(b.p.sMin)}–${hhmm(b.p.eMin)}${b.p.estimated ? '' : ' · ohne Schätzung'}</span></div>
       <button class="ghost unplan" data-unplan="${t.id}" aria-label="Aus dem Plan nehmen" title="Aus dem Plan nehmen">✕</button></div>`;
   }).join('');
@@ -1186,6 +1343,7 @@ function renderPlan() {
   el.querySelectorAll('[data-drag]').forEach((card) => card.addEventListener('pointerdown', planDragStart));
   el.querySelectorAll('[data-play]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); startFocus(b.dataset.play); render(); });
   el.querySelectorAll('[data-plan]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); planTask(taskById(b.dataset.plan), day); });
+  el.querySelectorAll('[data-plancheck]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); toggleDone(b.dataset.plancheck); });
   el.querySelectorAll('[data-unplan]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); updateTask(b.dataset.unplan, { planned_start: null }); });
   // beim ersten Öffnen zur aktuellen Uhrzeit bzw. zum Arbeitsbeginn scrollen
   if (!renderPlan._scrolled) {
@@ -1213,8 +1371,7 @@ async function addTask(title, extra = {}, opts = { open: true }) {
     if (state.view.type === 'plan') row.due_date = state.planDate || todayStr();
   }
   Object.assign(row, extra);
-  const { data, error } = await db.from('tasks').insert(row).select().single();
-  if (error) return showError(error);
+  const data = dbInsert('tasks', row);
   state.tasks.push(data);
   if (!isSub && opts.open) state.selectedId = data.id;   // neue Aufgabe direkt zum Bearbeiten öffnen
   render();
@@ -1288,8 +1445,7 @@ async function updateTask(id, patch) {
   if (!t) return;
   Object.assign(t, patch);
   render();
-  const { error } = await db.from('tasks').update(patch).eq('id', id);
-  if (error) showError(error);
+  dbUpdate('tasks', id, patch);
 }
 
 async function toggleDone(id) {
@@ -1305,15 +1461,10 @@ async function toggleDone(id) {
       estimate_pomodoros: t.estimate_pomodoros, estimate_minutes: t.estimate_minutes,
       recurrence: t.recurrence, tags: t.tags, sort_order: t.sort_order,
     };
-    const { data, error } = await db.from('tasks').insert(copy).select().single();
-    if (error) return showError(error);
+    const data = dbInsert('tasks', copy);
     state.tasks.push(data);
     // Unteraufgaben mitnehmen (unerledigt)
-    const subs = subtasksOf(t.id).map((s) => ({ title: s.title, parent_id: data.id, sort_order: s.sort_order, project_id: t.project_id }));
-    if (subs.length) {
-      const r = await db.from('tasks').insert(subs).select();
-      if (r.error) showError(r.error); else state.tasks.push(...r.data);
-    }
+    for (const s of subtasksOf(t.id)) state.tasks.push(dbInsert('tasks', { title: s.title, parent_id: data.id, sort_order: s.sort_order, project_id: t.project_id }));
     toast('Nächste Wiederholung: ' + fmtDate(data.due_date));
   }
   await updateTask(id, { done, done_at: done ? new Date().toISOString() : null });
@@ -1322,9 +1473,8 @@ async function toggleDone(id) {
 async function deleteTask(id) {
   const t = taskById(id);
   if (!t || !confirm(`„${t.title}“ löschen?`)) return;
-  const { error } = await db.from('tasks').delete().eq('id', id);
-  if (error) return showError(error);
   state.tasks = state.tasks.filter((x) => x.id !== id && x.parent_id !== id);
+  dbDelete('tasks', id);
   if (state.selectedId === id) state.selectedId = null;
   render();
 }
@@ -1370,23 +1520,20 @@ function openProjectModal(project) {
     const row = { name, area: $('pArea').value, color };
     if (isNew) {
       row.sort_order = nextSortOrder(state.projects);
-      const { data, error } = await db.from('projects').insert(row).select().single();
-      if (error) return showError(error);
+      const data = dbInsert('projects', row);
       state.projects.push(data);
       state.view = { type: 'project', id: data.id };
     } else {
-      const { error } = await db.from('projects').update(row).eq('id', p.id);
-      if (error) return showError(error);
       Object.assign(p, row);
+      dbUpdate('projects', p.id, row);
     }
     close(); closeSidebar(); render();
   };
   if (!isNew) $('pDel').onclick = async () => {
     const n = state.tasks.filter((t) => t.project_id === p.id).length;
     if (!confirm(`Liste „${p.name}“ löschen?${n ? ` Dabei werden auch ${n} Aufgaben gelöscht.` : ''}`)) return;
-    const { error } = await db.from('projects').delete().eq('id', p.id);
-    if (error) return showError(error);
     state.projects = state.projects.filter((x) => x.id !== p.id);
+    dbDelete('projects', p.id);
     state.tasks = state.tasks.filter((t) => t.project_id !== p.id);
     state.view = { type: 'today', id: null };
     close(); render();
@@ -1400,17 +1547,52 @@ function tasksForView() {
   const t = todayStr();
   const v = state.view;
   let list = topLevel();
-  if (v.type === 'today') list = list.filter((x) => x.due_date && x.due_date <= t && (!x.done || (x.done_at && x.done_at.slice(0, 10) === t)));
+  if (v.type === 'today') list = list.filter((x) => isTodayTask(x, t) && (!x.done || (x.done_at && x.done_at.slice(0, 10) === t)));
   else if (v.type === 'upcoming') { const end = addDays(t, 7); list = list.filter((x) => x.due_date && x.due_date >= t && x.due_date <= end); }
   else if (v.type === 'nodate') list = list.filter((x) => !x.due_date);
   else if (v.type === 'project') list = list.filter((x) => x.project_id === v.id);
+  else if (v.type === 'search') list = searchTasks(state.search);
   return list.sort((a, b) => a.sort_order - b.sort_order);
 }
+
+// ================== Suche ==================
+// Alle Suchwörter müssen vorkommen – in Titel, Notizen, Tags, Listenname oder einer Unteraufgabe
+function normSearch(x) { return String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss'); }
+function searchTasks(q) {
+  const words = normSearch(q).split(/\s+/).filter(Boolean).map((w) => w.replace(/^#/, ''));
+  if (!words.length) return [];
+  return topLevel().filter((t) => {
+    const hay = normSearch([t.title, t.notes, (t.tags || []).join(' '), projectById(t.project_id)?.name, ...subtasksOf(t.id).map((s) => s.title)].join(' '));
+    return words.every((w) => hay.includes(w));
+  });
+}
+let searchPrevView = null;
+function openSearch() {
+  $('searchBar').classList.remove('hidden');
+  $('searchInput').focus();
+}
+function closeSearch() {
+  $('searchBar').classList.add('hidden');
+  $('searchInput').value = ''; state.search = '';
+  if (state.view.type === 'search') { state.view = searchPrevView || { type: 'today', id: null }; render(); }
+}
+function onSearchInput() {
+  state.search = $('searchInput').value;
+  if (state.search.trim()) {
+    if (state.view.type !== 'search') { searchPrevView = state.view; state.view = { type: 'search', id: null }; }
+  } else if (state.view.type === 'search') { state.view = searchPrevView || { type: 'today', id: null }; }
+  state.showDone = state.view.type === 'search' ? true : state.showDone;
+  render();
+}
+
+// Gehört in "Heute": fällig heute/überfällig ODER für heute/früher eingeplant
+function isTodayTask(x, t = todayStr()) { return (x.due_date && x.due_date <= t) || (x.planned_date && x.planned_date <= t); }
 
 function viewTitle() {
   const v = state.view;
   if (v.type === 'today') return 'Heute';
   if (v.type === 'plan') return 'Tagesplan';
+  if (v.type === 'search') return 'Suche';
   if (v.type === 'upcoming') return 'Nächste 7 Tage';
   if (v.type === 'nodate') return 'Ohne Datum';
   if (v.type === 'all') return 'Alle Aufgaben';
@@ -1419,6 +1601,7 @@ function viewTitle() {
 
 // ================== Rendern ==================
 function render() {
+  scheduleCacheSave();
   renderSidebar();
   renderList();
   renderDetail();
@@ -1428,7 +1611,7 @@ function renderSidebar() {
   const t = todayStr();
   const open = topLevel().filter((x) => !x.done);
   const counts = {
-    today: open.filter((x) => x.due_date && x.due_date <= t).length,
+    today: open.filter((x) => isTodayTask(x, t)).length,
     upcoming: open.filter((x) => x.due_date && x.due_date >= t && x.due_date <= addDays(t, 7)).length,
     nodate: open.filter((x) => !x.due_date).length,
     all: open.length,
@@ -1459,6 +1642,7 @@ function renderSidebar() {
   $('sidebar').querySelectorAll('.nav-item').forEach((el) => el.onclick = (e) => {
     if (e.target.closest('.edit')) return;
     state.view = { type: el.dataset.type, id: el.dataset.id || null };
+    $('searchBar').classList.add('hidden'); $('searchInput').value = ''; state.search = '';
     if (state.view.type === 'plan') { renderPlan._scrolled = false; if (!state.planDate) state.planDate = todayStr(); }
     state.selectedId = null;
     closeSidebar();
@@ -1523,15 +1707,16 @@ function renderList() {
       if (items.length) html += `<div class="group-title">${fmtDate(d)} · ${parseDate(d).toLocaleDateString('de-DE', { day: '2-digit', month: 'long' })}</div>` + items.map((x) => taskHtml(x)).join('');
     }
   } else if (state.view.type === 'today') {
-    const late = open.filter((x) => x.due_date < todayStr());
-    const today = open.filter((x) => x.due_date === todayStr());
+    const tt = todayStr();
+    const late = open.filter((x) => x.planned_date !== tt && ((x.due_date && x.due_date < tt) || (x.planned_date && x.planned_date < tt)));
+    const today = open.filter((x) => !late.includes(x));
     if (late.length) html += `<div class="group-title">Überfällig</div><div class="sort-zone">${late.map((x) => taskHtml(x, { sortable: true })).join('')}</div>`;
     if (today.length) html += `${late.length ? '<div class="group-title">Heute</div>' : ''}<div class="sort-zone">${today.map((x) => taskHtml(x, { sortable: true })).join('')}</div>`;
   } else {
     html += `<div class="sort-zone">${open.map((x) => taskHtml(x, { sortable: true })).join('')}</div>`;
   }
 
-  if (!open.length) html += `<div class="empty">${state.view.type === 'today' ? 'Für heute ist nichts geplant.' : 'Keine offenen Aufgaben.'}</div>`;
+  if (!open.length) html += `<div class="empty">${state.view.type === 'today' ? 'Für heute ist nichts geplant.' : state.view.type === 'search' ? (done.length ? 'Keine offenen Treffer.' : `Nichts gefunden für „${esc(state.search)}“.`) : 'Keine offenen Aufgaben.'}</div>`;
 
   if (done.length) {
     html += `<button class="done-toggle" id="doneToggle">${state.showDone ? '▾' : '▸'} Erledigt (${done.length})</button>`;
@@ -1720,9 +1905,8 @@ function renderDetail() {
   d.querySelectorAll('[data-sessdel]').forEach((b) => b.onclick = async () => {
     if (!confirm('Diesen Fokus-Eintrag löschen?')) return;
     const id = b.dataset.sessdel;
-    const { error } = await db.from('pomodoro_sessions').delete().eq('id', id);
-    if (error) return showError(error);
     state.sessions = state.sessions.filter((s) => s.id !== id);
+    dbDelete('pomodoro_sessions', id);
     render();
   });
 
@@ -1737,9 +1921,8 @@ function renderDetail() {
   d.querySelectorAll('[data-subcheck]').forEach((b) => b.onclick = () => toggleDone(b.dataset.subcheck));
   d.querySelectorAll('[data-subdel]').forEach((b) => b.onclick = async () => {
     const id = b.dataset.subdel;
-    const { error } = await db.from('tasks').delete().eq('id', id);
-    if (error) return showError(error);
     state.tasks = state.tasks.filter((x) => x.id !== id);
+    dbDelete('tasks', id);
     render();
   });
 }
@@ -1749,8 +1932,7 @@ async function updateTaskQuiet(id, patch) {
   const t = taskById(id);
   if (!t) return;
   Object.assign(t, patch);
-  const { error } = await db.from('tasks').update(patch).eq('id', id);
-  if (error) showError(error);
+  dbUpdate('tasks', id, patch);
   renderList();
 }
 
@@ -1760,13 +1942,24 @@ function closeSidebar() { $('sidebar').classList.remove('open'); $('backdrop').c
 
 // ================== Start ==================
 function showApp(user) {
-  state.user = user;
+  state.user = { id: user.id, email: user.email };
+  try { localStorage.setItem(LASTUSER_KEY, JSON.stringify(state.user)); } catch (e) {}
   $('auth').classList.add('hidden');
   $('app').classList.remove('hidden');
+  loadOutbox(user.id);
+  // sofort mit den lokal gespeicherten Daten starten (funktioniert auch ohne Netz)
+  if (loadCache(user.id)) { render(); }
+  updateSyncBadge();
   loadTimer();
+  renderTimer();
   loadData().then(() => { if (timer) { ensureTick(); phaseEnded(); } });
 }
 function showAuth() {
+  // Ohne Netz nicht abmelden: mit dem zuletzt angemeldeten Nutzer und lokalen Daten weiterarbeiten
+  if (!navigator.onLine) {
+    try { const last = JSON.parse(localStorage.getItem(LASTUSER_KEY) || 'null'); if (last && !state.user) { showApp(last); setOffline(true); return; } } catch (e) {}
+    if (state.user) return;
+  }
   state.user = null; state.tasks = []; state.projects = []; state.sessions = [];
   timer = null; renderTimer();
   $('app').classList.add('hidden');
@@ -1793,21 +1986,41 @@ $('newTask').onfocus = () => $('quickHelp').classList.toggle('hidden', !!$('newT
 $('newTask').onblur = () => setTimeout(() => $('quickHelp').classList.add('hidden'), 150);
 setupMic();
 $('menuBtn').onclick = openSidebar;
+$('searchBtn').onclick = () => ($('searchBar').classList.contains('hidden') ? openSearch() : closeSearch());
+$('searchClose').onclick = closeSearch;
+$('searchInput').oninput = onSearchInput;
+$('searchInput').onkeydown = (e) => { if (e.key === 'Escape') { e.stopPropagation(); closeSearch(); } };
 $('backdrop').onclick = closeSidebar;
 $('refreshBtn').onclick = () => loadData().then(() => toast('Aktualisiert'));
 document.addEventListener('keydown', (e) => {
+  // Cmd/Strg+K oder "/" öffnet die Suche
+  if (((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') || (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || ''))) {
+    if (state.user) { e.preventDefault(); openSearch(); }
+    return;
+  }
   if (e.key === 'Escape') {
     if (!$('modal').classList.contains('hidden')) $('modal').classList.add('hidden');
     else if (!$('focusView').classList.contains('hidden')) $('fvClose').click();
     else if (state.selectedId) { state.selectedId = null; render(); }
   }
 });
+window.addEventListener('online', () => { setOffline(false); if (state.user) loadData(); });
+window.addEventListener('offline', () => setOffline(true));
+// Beim Schließen oder Wegwechseln sofort sichern
+window.addEventListener('pagehide', () => { clearTimeout(cacheTimer); saveCache(); saveOutbox(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { clearTimeout(cacheTimer); saveCache(); saveOutbox(); } });
+
 // Abgleich mit anderen Geräten: beim Zurückkehren zur App neu laden; abgelaufene Timer-Phasen nachholen
 document.addEventListener('visibilitychange', () => {
   if (document.hidden || !state.user) return;
   loadData().then(() => { if (timer) phaseEnded(); });
   if (!$('focusView').classList.contains('hidden')) keepScreenOn(true);
 });
+
+// Service Worker: hält die App-Dateien für die Nutzung ohne Netz bereit (nur über https bzw. localhost)
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service Worker nicht registriert', e));
+}
 
 db.auth.onAuthStateChange((_event, session) => {
   // setTimeout: Datenbankabfragen nicht direkt im Auth-Callback starten (vermeidet Blockieren in supabase-js)

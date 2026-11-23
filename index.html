@@ -215,6 +215,17 @@
   .pl-task .late { color: var(--danger); }
   .pl-task button[data-plan] { padding: 5px 10px; font-size: 13px; flex-shrink: 0; }
   .plan-chip { color: var(--accent); }
+  .grip { color: #b9b8b2; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; padding: 4px 2px; font-size: 14px; line-height: 1; flex-shrink: 0; letter-spacing: -2px; }
+  .tl-task .grip { padding: 1px 0; font-size: 12px; }
+  .pl-task, .tl-task { -webkit-user-select: none; user-select: none; }
+  .dragging { opacity: .35; }
+  .drag-ghost { position: fixed; left: 0; top: 0; z-index: 80; pointer-events: none; background: var(--panel); border: 1px solid var(--accent); border-radius: 8px; padding: 8px 10px; box-shadow: 0 10px 28px rgba(0,0,0,.2); display: flex; gap: 8px; align-items: center; font-size: 14px; opacity: .95; }
+  .drag-ghost button[data-plan], .drag-ghost .unplan { display: none; }
+  body.drag-active, body.drag-active * { cursor: grabbing !important; }
+  .tl-drop { position: absolute; left: 0; right: 0; border-top: 2px solid var(--accent); z-index: 5; pointer-events: none; }
+  .tl-drop::after { content: attr(data-time); position: absolute; left: 4px; top: -11px; background: var(--accent); color: #fff; font-size: 11.5px; padding: 1px 6px; border-radius: 4px; }
+  .plan-todo.drop-on { outline: 2px dashed var(--accent); outline-offset: 4px; border-radius: 8px; }
+  .drag-hint { font-size: 12.5px; color: var(--muted); margin: -2px 0 8px; }
   .set-sec { font-weight: 600; font-size: 15px; margin: 22px 0 2px; padding-top: 14px; border-top: 1px solid var(--line); }
   .box h3 + .set-sec { border-top: none; padding-top: 0; margin-top: 10px; }
   .days { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -920,22 +931,30 @@ function fmtDur(min) { min = Math.round(min); const h = Math.floor(min / 60), m 
 function taskDuration(t) { return t.estimate_minutes || (t.estimate_pomodoros ? t.estimate_pomodoros * S().pomodoro_minutes : 0); }
 function weekStart(day) { const d = parseDate(day); const diff = (d.getDay() + 6) % 7; d.setDate(d.getDate() - diff); return toDateStr(d); }
 
+// Termine laden – nie mehrere Anfragen gleichzeitig; Wünsche während einer Anfrage werden danach gebündelt erledigt
+let eventsInFlight = null, eventsAgain = false;
 async function loadEvents(force = false) {
   const day = state.planDate || todayStr();
   const key = weekStart(day);
   if (!force && state.events.key === key) return;
+  if (eventsInFlight) { eventsAgain = true; return; }
   if (!state.calendars.some((c) => c.enabled)) { state.events = { key, list: [], errors: [], loading: false }; if (state.view.type === 'plan') renderList(); return; }
   state.events = { ...state.events, key, loading: true };
   if (state.view.type === 'plan') renderList();
   const from = parseDate(key), to = parseDate(addDays(key, 7));
-  const { data, error } = await db.functions.invoke('calendar-events', { body: { from: from.toISOString(), to: to.toISOString() } });
-  if (state.events.key !== key) return;   // inzwischen andere Woche gewählt
+  eventsInFlight = db.functions.invoke('calendar-events', { body: { from: from.toISOString(), to: to.toISOString() } });
+  let data, error;
+  try { ({ data, error } = await eventsInFlight); } catch (e) { error = e; }
+  eventsInFlight = null;
   if (error || data?.error) {
-    state.events = { key, list: [], errors: [{ name: 'Kalender', message: data?.error || error.message || 'nicht erreichbar' }], loading: false };
+    const msg = data?.error || (/non-2xx/i.test(error?.message || '') ? 'Die Kalender konnten gerade nicht geladen werden. Bitte mit ⟳ erneut versuchen.' : (error?.message || 'nicht erreichbar'));
+    state.events = { key, list: [], errors: [{ name: 'Kalender', message: msg }], loading: false };
   } else {
     state.events = { key, list: data.events || [], errors: data.errors || [], loading: false };
   }
   if (state.view.type === 'plan') renderList();
+  // inzwischen andere Woche gewählt oder Kalender geändert → einmal nachladen
+  if (eventsAgain || weekStart(state.planDate || todayStr()) !== key) { eventsAgain = false; loadEvents(true); }
 }
 
 function dayEvents(day) {
@@ -1014,6 +1033,79 @@ async function planTask(t, day) {
   toast(`Eingeplant um ${hhmm(slot[0])}${(slot[1] - slot[0]) < need ? ' (Lücke ist zu kurz)' : ''}`);
 }
 
+// ---- Ziehen & Ablegen im Tagesplan (Maus und Touch, über Pointer-Events) ----
+// Maus: ganze Karte ziehbar. Touch: nur am Griff ⋮⋮, damit normales Scrollen weiter funktioniert.
+const planDrag = { cur: null, endedAt: 0, ctx: null };
+function planDragStart(e) {
+  if (e.button !== 0) return;
+  const onGrip = !!e.target.closest('.grip');
+  if (!onGrip && (e.pointerType !== 'mouse' || e.target.closest('button'))) return;
+  const card = e.currentTarget;
+  planDrag.cur = { id: card.dataset.drag, card, x0: e.clientX, y0: e.clientY, started: false, ghost: null, target: null };
+  if (onGrip) e.preventDefault();
+}
+function planDragMove(e) {
+  const d = planDrag.cur; if (!d) return;
+  if (!d.started) {
+    if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 6) return;
+    d.started = true;
+    const r = d.card.getBoundingClientRect();
+    d.dx = e.clientX - r.left; d.dy = e.clientY - r.top;
+    d.ghost = d.card.cloneNode(true);
+    d.ghost.className = 'drag-ghost'; d.ghost.removeAttribute('style');
+    d.ghost.style.width = Math.min(r.width, 320) + 'px';
+    document.body.appendChild(d.ghost);
+    d.card.classList.add('dragging');
+    document.body.classList.add('drag-active');
+  }
+  e.preventDefault();
+  d.ghost.style.transform = `translate(${e.clientX - Math.min(d.dx, 40)}px, ${e.clientY - 20}px)`;
+  // automatisch scrollen am Rand
+  const list = $('list'), lr = list.getBoundingClientRect();
+  if (e.clientY < lr.top + 50) list.scrollTop -= 12; else if (e.clientY > lr.bottom - 50) list.scrollTop += 12;
+  // Ziel bestimmen
+  const tl = document.querySelector('#list .timeline'), todo = document.querySelector('#list .plan-todo');
+  const ind = document.getElementById('tlDrop');
+  d.target = null;
+  todo?.classList.remove('drop-on');
+  if (tl) {
+    const tr = tl.getBoundingClientRect();
+    if (e.clientX >= tr.left - 50 && e.clientX <= tr.right && e.clientY >= tr.top && e.clientY <= tr.bottom) {
+      const c = planDrag.ctx;
+      let min = c.startMin + (e.clientY - tr.top - 10) / PX_PER_MIN;
+      min = Math.round(min / 15) * 15;
+      min = Math.max(c.startMin, Math.min(c.endMin - 15, min));
+      d.target = { kind: 'time', min };
+      const top = (min - c.startMin) * PX_PER_MIN;
+      if (ind) { ind.style.top = top + 'px'; ind.dataset.time = hhmm(min); ind.classList.remove('hidden'); }
+    }
+  }
+  if (!d.target && ind) ind.classList.add('hidden');
+  if (!d.target && todo) {
+    const r = todo.getBoundingClientRect();
+    if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) { d.target = { kind: 'todo' }; todo.classList.add('drop-on'); }
+  }
+}
+function planDragEnd() {
+  const d = planDrag.cur; planDrag.cur = null;
+  if (!d || !d.started) return;
+  planDrag.endedAt = Date.now();
+  d.ghost?.remove(); d.card.classList.remove('dragging'); document.body.classList.remove('drag-active');
+  document.getElementById('tlDrop')?.classList.add('hidden');
+  document.querySelector('#list .plan-todo')?.classList.remove('drop-on');
+  const t = taskById(d.id); if (!t || !d.target) return;
+  const day = planDrag.ctx.day;
+  if (d.target.kind === 'time') {
+    updateTask(t.id, { planned_date: day, planned_start: hhmm(d.target.min) });
+    toast(`Eingeplant um ${hhmm(d.target.min)}`);
+  } else if (d.target.kind === 'todo' && t.planned_start) {
+    updateTask(t.id, { planned_start: null, planned_date: day });
+  }
+}
+window.addEventListener('pointermove', planDragMove, { passive: false });
+window.addEventListener('pointerup', planDragEnd);
+window.addEventListener('pointercancel', planDragEnd);
+
 function renderPlan() {
   const day = state.planDate || (state.planDate = todayStr());
   loadEvents();
@@ -1042,7 +1134,8 @@ function renderPlan() {
         <b>${esc(e.title)}</b><span>${hhmm(e.sMin)}–${hhmm(e.eMin)}${e.location ? ' · ' + esc(e.location) : ''}</span></div>`;
     }
     const t = b.p.task;
-    return `<div class="tl-task ${t.done ? 'done' : ''}" style="${style}" data-open="${t.id}">
+    return `<div class="tl-task ${t.done ? 'done' : ''}" style="${style}" data-open="${t.id}" data-drag="${t.id}">
+      <span class="grip" aria-hidden="true">⋮⋮</span>
       <button class="play" data-play="${t.id}" aria-label="Pomodoro starten">▶</button>
       <div><b>${esc(t.title)}</b><span>${hhmm(b.p.sMin)}–${hhmm(b.p.eMin)}${b.p.estimated ? '' : ' · ohne Schätzung'}</span></div>
       <button class="ghost unplan" data-unplan="${t.id}" aria-label="Aus dem Plan nehmen" title="Aus dem Plan nehmen">✕</button></div>`;
@@ -1055,7 +1148,8 @@ function renderPlan() {
   const todoHtml = m.todo.length ? m.todo.map((t) => {
     const dur = taskDuration(t);
     const proj = projectById(t.project_id);
-    return `<div class="pl-task" data-open="${t.id}">
+    return `<div class="pl-task" data-open="${t.id}" data-drag="${t.id}">
+      <span class="grip" aria-hidden="true">⋮⋮</span>
       <button class="play" data-play="${t.id}" aria-label="Pomodoro starten">▶</button>
       <div class="pl-body"><div>${esc(t.title)}</div><div class="meta">${dur ? fmtDur(dur) : 'ohne Schätzung'}${t.due_date && t.due_date < day ? ` · <span class="late">fällig ${fmtDate(t.due_date)}</span>` : ''}${proj ? ' · ' + esc(proj.name) : ''}</div></div>
       <button data-plan="${t.id}">Einplanen</button></div>`;
@@ -1077,8 +1171,8 @@ function renderPlan() {
     </div>
     ${m.ev.allDay.length ? `<div class="plan-allday">${m.ev.allDay.map((e) => `<span style="--c:${esc(e.color || '#8e8d87')}">${esc(e.title)}</span>`).join('')}</div>` : ''}
     <div class="plan-grid">
-      <div class="timeline" style="height:${height + 12}px">${workBand}${hours}${freeHtml}${blockHtml}${nowLine}</div>
-      <div class="plan-todo"><div class="group-title" style="margin-top:0">Noch einzuplanen (${m.todo.length})</div>${todoHtml}</div>
+      <div class="timeline" style="height:${height + 12}px">${workBand}${hours}${freeHtml}${blockHtml}${nowLine}<div id="tlDrop" class="tl-drop hidden"></div></div>
+      <div class="plan-todo"><div class="group-title" style="margin-top:0">Noch einzuplanen (${m.todo.length})</div><div class="drag-hint">Zum Einplanen am Griff ⋮⋮ in die Zeitleiste ziehen – oder zurück hierher, um es aus dem Plan zu nehmen.</div>${todoHtml}</div>
     </div>`;
 
   const go = (n) => { state.planDate = addDays(day, n); renderList(); };
@@ -1087,7 +1181,9 @@ function renderPlan() {
   if ($('planToday')) $('planToday').onclick = () => { state.planDate = todayStr(); renderList(); };
   $('planReload').onclick = () => loadEvents(true);
   if ($('planSettings')) $('planSettings').onclick = openSettings;
-  el.querySelectorAll('[data-open]').forEach((x) => x.onclick = (e) => { if (e.target.closest('button')) return; state.selectedId = x.dataset.open; render(); });
+  el.querySelectorAll('[data-open]').forEach((x) => x.onclick = (e) => { if (e.target.closest('button') || e.target.closest('.grip') || Date.now() - planDrag.endedAt < 250) return; state.selectedId = x.dataset.open; render(); });
+  planDrag.ctx = { day, startMin: m.startMin, endMin: m.endMin };
+  el.querySelectorAll('[data-drag]').forEach((card) => card.addEventListener('pointerdown', planDragStart));
   el.querySelectorAll('[data-play]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); startFocus(b.dataset.play); render(); });
   el.querySelectorAll('[data-plan]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); planTask(taskById(b.dataset.plan), day); });
   el.querySelectorAll('[data-unplan]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); updateTask(b.dataset.unplan, { planned_start: null }); });

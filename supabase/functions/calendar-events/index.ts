@@ -29,16 +29,38 @@ function safeUrl(raw: string): URL | null {
   } catch (_) { return null; }
 }
 
+function prefilterIcs(text: string, from: Date, to: Date) {
+  const unfolded = text.replace(/\r?\n[ \t]/g, '');          // gefaltete Zeilen zusammenfügen
+  const ymd = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
+  const lo = ymd(new Date(from.getTime() - 2 * 864e5)), hi = ymd(new Date(to.getTime() + 2 * 864e5));
+  const tzs = unfolded.match(/BEGIN:VTIMEZONE[\s\S]*?END:VTIMEZONE\r?\n?/g) || [];
+  const evs = unfolded.match(/BEGIN:VEVENT[\s\S]*?END:VEVENT\r?\n?/g) || [];
+  const keep = [];
+  for (const b of evs) {
+    if (/\n(RRULE|RDATE)[:;]/.test(b)) {                       // Serie: behalten, außer sie endete vor dem Zeitraum
+      const until = (b.match(/UNTIL=(\d{8})/) || [])[1];
+      if (!until || until >= lo) keep.push(b);
+      continue;
+    }
+    const start = (b.match(/\nDTSTART[^:\n]*:(\d{8})/) || [])[1];
+    const end = (b.match(/\nDTEND[^:\n]*:(\d{8})/) || [])[1] || start;
+    const rid = (b.match(/\nRECURRENCE-ID[^:\n]*:(\d{8})/) || [])[1];
+    if (!start) { keep.push(b); continue; }
+    const inRange = end >= lo && start <= hi;
+    const ridInRange = rid && rid >= lo && rid <= hi;          // verschobener Serientermin, dessen Original im Zeitraum lag
+    if (inRange || ridInRange) keep.push(b);
+  }
+  return { text: 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Fokus//DE\r\n' + tzs.join('') + keep.join('') + 'END:VCALENDAR\r\n', total: evs.length, kept: keep.length };
+}
+
 function expandIcs(ICAL: any, text: string, from: Date, to: Date): any[] {
-  const root = new ICAL.Component(ICAL.parse(text));
-  // Zeitzonen aus der Datei bekannt machen
+  const root = new ICAL.Component(ICAL.parse(prefilterIcs(text, from, to).text));
   for (const tz of root.getAllSubcomponents('vtimezone')) {
     try { ICAL.TimezoneService.register(new ICAL.Timezone(tz)); } catch (_) { /* doppelt registriert */ }
   }
-  const vevents = root.getAllSubcomponents('vevent');
   const masters = new Map();
   const exceptions = [];
-  for (const ve of vevents) {
+  for (const ve of root.getAllSubcomponents('vevent')) {
     const ev = new ICAL.Event(ve);
     if (ev.isRecurrenceException()) exceptions.push(ev);
     else masters.set(ev.uid, ev);
@@ -46,7 +68,7 @@ function expandIcs(ICAL: any, text: string, from: Date, to: Date): any[] {
   for (const ex of exceptions) {
     const m = masters.get(ex.uid);
     if (m) m.relateException(ex);
-    else masters.set(ex.uid + '#' + ex.recurrenceId.toString(), ex); // Ausnahme ohne Serie
+    else masters.set(ex.uid + '#' + ex.recurrenceId.toString(), ex);
   }
 
   const out = [];
@@ -54,8 +76,7 @@ function expandIcs(ICAL: any, text: string, from: Date, to: Date): any[] {
   const push = (ev, start, end, comp) => {
     const s = start.toJSDate(), e = (end || start).toJSDate();
     if (e.getTime() <= fromMs || s.getTime() >= toMs) return;
-    const status = (comp.getFirstPropertyValue('status') || '').toUpperCase();
-    if (status === 'CANCELLED') return;
+    if ((comp.getFirstPropertyValue('status') || '').toUpperCase() === 'CANCELLED') return;
     const transp = (comp.getFirstPropertyValue('transp') || '').toUpperCase();
     const allDay = start.isDate;
     out.push({
@@ -73,8 +94,9 @@ function expandIcs(ICAL: any, text: string, from: Date, to: Date): any[] {
     if (ev.isRecurring()) {
       const it = ev.iterator();
       let next, guard = 0;
-      while ((next = it.next()) && guard++ < 3000) {
+      while ((next = it.next()) && guard++ < 60000) {             // reicht z. B. für tägliche Serien seit über 100 Jahren
         if (next.toJSDate().getTime() >= toMs) break;
+        if (next.toJSDate().getTime() < fromMs - 40 * 864e5) continue;   // weit vor dem Zeitraum: Details sparen
         const d = ev.getOccurrenceDetails(next);
         push(d.item, d.startDate, d.endDate, d.item.component);
       }
@@ -101,22 +123,30 @@ Deno.serve(async (req) => {
 
     const events: unknown[] = [];
     const errors: { calendar_id: string; name: string; message: string }[] = [];
-    await Promise.all((cals || []).map(async (c) => {
+    // Kalender parallel herunterladen, aber nacheinander auswerten (spart Speicher)
+    const texts = await Promise.all((cals || []).map(async (c) => {
       const url = safeUrl(c.url);
-      if (!url) { errors.push({ calendar_id: c.id, name: c.name, message: 'Ungültiger Link' }); return; }
+      if (!url) return { c, err: 'Ungültiger Link' };
       try {
         const ctl = new AbortController();
         const timer = setTimeout(() => ctl.abort(), 12000);
         const res = await fetch(url, { signal: ctl.signal, headers: { 'User-Agent': 'Fokus-App/1.0' } });
         clearTimeout(timer);
-        if (!res.ok) throw new Error(`Kalender antwortet mit ${res.status}`);
+        if (!res.ok) return { c, err: `Kalender antwortet mit ${res.status}` };
         const text = await res.text();
-        if (!text.includes('BEGIN:VCALENDAR')) throw new Error('Kein Kalender unter diesem Link');
-        for (const e of expandIcs(ICAL, text, fromD, toD)) events.push({ ...e, calendar_id: c.id, calendar: c.name, color: c.color });
-      } catch (e) {
-        errors.push({ calendar_id: c.id, name: c.name, message: e instanceof Error ? e.message : String(e) });
-      }
+        if (!text.includes('BEGIN:VCALENDAR')) return { c, err: 'Kein Kalender unter diesem Link' };
+        return { c, text };
+      } catch (e) { return { c, err: e instanceof Error ? e.message : String(e) }; }
     }));
+    for (const r of texts) {
+      if (r.err) { errors.push({ calendar_id: r.c.id, name: r.c.name, message: r.err }); continue; }
+      try {
+        for (const e of expandIcs(ICAL, r.text, fromD, toD)) events.push({ ...e, calendar_id: r.c.id, calendar: r.c.name, color: r.c.color });
+      } catch (e) {
+        errors.push({ calendar_id: r.c.id, name: r.c.name, message: 'Kalender konnte nicht gelesen werden' });
+      }
+      r.text = null;
+    }
     return json({ events, errors });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
